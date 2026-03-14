@@ -22,6 +22,10 @@
           <div class="counter"><span class="counter-value" id="cnt-sessions">0</span><span class="counter-label">Sessions</span></div>
         </div>
       </div>
+      <div class="header-mid">
+        <div class="inline-status" id="channel-list"></div>
+        <div class="inline-status" id="presence-list"></div>
+      </div>
       <div class="header-right">
         <div class="status-indicator" id="health-indicator"><span class="dot"></span><span class="label">CONNECTING</span></div>
         <div class="clock" id="clock">--:--:--</div>
@@ -29,8 +33,8 @@
     </header>
 
     <div class="grid">
-      <!-- Row 1: Token Usage | Today | Cost | (empty, merged with Token) -->
-      <div class="card r1-usage">
+      <!-- Row 1: Token Usage | Today | Cost Breakdown -->
+      <div class="card">
         <div class="card-header"><span class="card-icon">📊</span><span class="card-title">TOKEN USAGE (30d)</span></div>
         <div class="card-body">
           <div class="metrics-row">
@@ -43,7 +47,7 @@
         </div>
       </div>
 
-      <div class="card r1-today">
+      <div class="card">
         <div class="card-header"><span class="card-icon">⚡</span><span class="card-title">TODAY</span></div>
         <div class="card-body">
           <div class="stat-grid">
@@ -60,35 +64,25 @@
         </div>
       </div>
 
-      <div class="card r1-cost">
+      <div class="card">
         <div class="card-header"><span class="card-icon">💰</span><span class="card-title">COST BREAKDOWN</span></div>
         <div class="card-body"><div class="cost-bars" id="cost-bars"></div></div>
       </div>
 
-      <!-- Row 2: Sessions | Task Log | Activity+Channels+Devices -->
-      <div class="card r2-sessions">
+      <!-- Row 2: Sessions | Task Log | Live Activity -->
+      <div class="card">
         <div class="card-header"><span class="card-icon">🔗</span><span class="card-title">SESSIONS</span><span class="badge" id="session-count">0</span></div>
         <div class="card-body"><div class="session-list" id="session-list"></div></div>
       </div>
 
-      <div class="card r2-tasks">
-        <div class="card-header"><span class="card-icon">🦐</span><span class="card-title">TASK LOG</span></div>
+      <div class="card">
+        <div class="card-header"><span class="card-icon">📋</span><span class="card-title">TASK LOG</span></div>
         <div class="card-body"><div class="task-log" id="task-log"></div></div>
       </div>
 
-      <div class="r2-sidebar">
-        <div class="card" style="flex:1;min-height:0">
-          <div class="card-header"><span class="card-icon">⚡</span><span class="card-title">LIVE ACTIVITY</span><span class="badge pulse" id="activity-count">0</span></div>
-          <div class="card-body"><div class="activity-feed" id="activity-feed"></div></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><span class="card-icon">🌐</span><span class="card-title">CHANNELS</span></div>
-          <div class="card-body"><div class="channel-list" id="channel-list"></div></div>
-        </div>
-        <div class="card">
-          <div class="card-header"><span class="card-icon">📡</span><span class="card-title">DEVICES</span></div>
-          <div class="card-body"><div class="presence-list" id="presence-list"></div></div>
-        </div>
+      <div class="card">
+        <div class="card-header"><span class="card-icon">⚡</span><span class="card-title">LIVE ACTIVITY</span><span class="badge pulse" id="activity-count">0</span></div>
+        <div class="card-body"><div class="activity-feed" id="activity-feed"></div></div>
       </div>
     </div>
 

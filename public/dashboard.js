@@ -55,12 +55,11 @@ function renderHealth(d) {
   const channels = h.channels || {};
   const list = $('channel-list');
   const entries = Object.entries(channels);
-  if (!entries.length) { list.innerHTML = '<div class="empty">No channels</div>'; return; }
+  if (!entries.length) { list.innerHTML = ''; return; }
   list.innerHTML = entries.map(([name, ch]) => {
     const ok = ch.probe?.ok || ch.configured;
     const label = h.channelLabels?.[name] || name;
-    let detail = ch.probe?.bot?.username ? '@' + ch.probe.bot.username : ch.probe?.appId || '';
-    return `<div class="channel-item"><div class="channel-dot ${ok?'ok':'error'}"></div><div class="channel-name">${esc(label)}</div><div class="channel-status">${esc(detail)}</div></div>`;
+    return `<span class="inline-dot ${ok?'ok':'error'}"></span><span class="inline-name">${esc(label)}</span>`;
   }).join('');
 }
 
@@ -207,12 +206,11 @@ function renderPresence(d) {
   if (!container) return;
   const active = presence.filter(p => p.reason !== 'disconnect');
   const show = active.length > 0 ? active : presence;
-  if (!show.length) { container.innerHTML = '<div class="empty">No devices</div>'; return; }
+  if (!show.length) { container.innerHTML = ''; return; }
   container.innerHTML = show.map(p => {
     const isActive = p.reason !== 'disconnect';
-    const name = p.host || p.deviceId?.slice(0, 12) || 'unknown';
-    const detail = [p.mode, p.platform].filter(Boolean).join(' · ');
-    return `<div class="presence-item"><div class="presence-dot ${isActive?'active':'inactive'}"></div><div class="presence-info"><div class="presence-name">${esc(name)}</div><div class="presence-detail">${esc(detail)}</div></div></div>`;
+    const name = p.host || p.deviceId?.slice(0, 12) || '?';
+    return `<span class="inline-dot ${isActive?'active':'inactive'}"></span><span class="inline-name">${esc(name)}</span>`;
   }).join('');
 }
 
@@ -242,8 +240,8 @@ function renderTaskLog(d) {
         <div class="task-main">
           <span class="task-time">${startTime}</span>
           <span class="task-desc">${esc(t.task)}</span>
-          <span class="task-status">${statusLabel}</span>
           ${toolBadge}
+          <span class="task-status">${statusLabel}</span>
         </div>
         ${resultLine}
       </div>`;
