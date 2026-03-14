@@ -106,10 +106,11 @@ function renderChart(daily) {
   const ctx = canvas.getContext('2d');
   const dpr = devicePixelRatio || 1;
   const rect = canvas.parentElement.getBoundingClientRect();
-  canvas.width = rect.width * dpr; canvas.height = 120 * dpr;
-  canvas.style.width = rect.width + 'px'; canvas.style.height = '120px';
+  const chartH = Math.min(rect.height || 80, 100);
+  canvas.width = rect.width * dpr; canvas.height = chartH * dpr;
+  canvas.style.width = rect.width + 'px'; canvas.style.height = chartH + 'px';
   ctx.scale(dpr, dpr);
-  const w = rect.width, h = 120;
+  const w = rect.width, h = chartH;
   const pad = { t: 10, r: 10, b: 25, l: 50 };
   const pw = w - pad.l - pad.r, ph = h - pad.t - pad.b;
   ctx.clearRect(0, 0, w, h);

@@ -41,77 +41,48 @@
       </div>
     </header>
 
-    <!-- Main Grid -->
+    <!-- Grid: 3 columns × 2 rows -->
     <div class="grid">
-      <!-- Token Usage -->
-      <div class="card card-wide">
+      <!-- R1C1: Token Usage (wide) -->
+      <div class="card" style="grid-column:1; grid-row:1">
         <div class="card-header">
           <span class="card-icon">📊</span>
           <span class="card-title">TOKEN USAGE (30d)</span>
         </div>
         <div class="card-body">
           <div class="metrics-row">
-            <div class="metric">
-              <div class="metric-value" id="total-tokens">--</div>
-              <div class="metric-label">Total Tokens</div>
-            </div>
-            <div class="metric">
-              <div class="metric-value accent-green" id="total-cost">--</div>
-              <div class="metric-label">Total Cost</div>
-            </div>
-            <div class="metric">
-              <div class="metric-value accent-cyan" id="cache-rate">--</div>
-              <div class="metric-label">Cache Ratio</div>
-            </div>
-            <div class="metric">
-              <div class="metric-value accent-purple" id="output-tokens">--</div>
-              <div class="metric-label">Output</div>
-            </div>
+            <div class="metric"><div class="metric-value" id="total-tokens">--</div><div class="metric-label">Total Tokens</div></div>
+            <div class="metric"><div class="metric-value accent-green" id="total-cost">--</div><div class="metric-label">Total Cost</div></div>
+            <div class="metric"><div class="metric-value accent-cyan" id="cache-rate">--</div><div class="metric-label">Cache Ratio</div></div>
+            <div class="metric"><div class="metric-value accent-purple" id="output-tokens">--</div><div class="metric-label">Output</div></div>
           </div>
-          <div class="chart-container">
-            <canvas id="usage-chart" height="120"></canvas>
-          </div>
+          <div class="chart-container"><canvas id="usage-chart" height="80"></canvas></div>
         </div>
       </div>
 
-      <!-- Today -->
-      <div class="card">
+      <!-- R1C2: Today -->
+      <div class="card" style="grid-column:2; grid-row:1">
         <div class="card-header">
           <span class="card-icon">⚡</span>
           <span class="card-title">TODAY</span>
         </div>
         <div class="card-body">
           <div class="stat-grid">
-            <div class="stat">
-              <div class="stat-value" id="today-tokens">--</div>
-              <div class="stat-label">Tokens</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value accent-green" id="today-cost">--</div>
-              <div class="stat-label">Cost</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value accent-cyan" id="today-output">--</div>
-              <div class="stat-label">Output</div>
-            </div>
-            <div class="stat">
-              <div class="stat-value accent-yellow" id="today-cache-read">--</div>
-              <div class="stat-label">Cache Read</div>
-            </div>
+            <div class="stat"><div class="stat-value" id="today-tokens">--</div><div class="stat-label">Tokens</div></div>
+            <div class="stat"><div class="stat-value accent-green" id="today-cost">--</div><div class="stat-label">Cost</div></div>
+            <div class="stat"><div class="stat-value accent-cyan" id="today-output">--</div><div class="stat-label">Output</div></div>
+            <div class="stat"><div class="stat-value accent-yellow" id="today-cache-read">--</div><div class="stat-label">Cache Read</div></div>
           </div>
-          <!-- Hourly activity heatmap -->
           <div class="hourly-heat" id="hourly-heat">
             <div class="hourly-label">Activity Timeline</div>
             <div class="hourly-bars" id="hourly-bars"></div>
-            <div class="hourly-labels">
-              <span>0</span><span>6</span><span>12</span><span>18</span><span>23</span>
-            </div>
+            <div class="hourly-labels"><span>0</span><span>6</span><span>12</span><span>18</span><span>23</span></div>
           </div>
         </div>
       </div>
 
-      <!-- Cost Breakdown -->
-      <div class="card">
+      <!-- R1C3: Cost Breakdown -->
+      <div class="card" style="grid-column:3; grid-row:1">
         <div class="card-header">
           <span class="card-icon">💰</span>
           <span class="card-title">COST BREAKDOWN</span>
@@ -121,8 +92,8 @@
         </div>
       </div>
 
-      <!-- Sessions with context bars -->
-      <div class="card card-wide card-tall">
+      <!-- R2C1: Sessions -->
+      <div class="card" style="grid-column:1; grid-row:2">
         <div class="card-header">
           <span class="card-icon">🔗</span>
           <span class="card-title">SESSIONS</span>
@@ -133,8 +104,8 @@
         </div>
       </div>
 
-      <!-- Live Activity Feed -->
-      <div class="card card-tall">
+      <!-- R2C2: Live Activity -->
+      <div class="card" style="grid-column:2; grid-row:2">
         <div class="card-header">
           <span class="card-icon">⚡</span>
           <span class="card-title">LIVE ACTIVITY</span>
@@ -145,25 +116,25 @@
         </div>
       </div>
 
-      <!-- Channels -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-icon">🌐</span>
-          <span class="card-title">CHANNELS</span>
+      <!-- R2C3: Channels + Devices stacked -->
+      <div style="grid-column:3; grid-row:2; display:flex; flex-direction:column; gap:10px; min-height:0">
+        <div class="card" style="flex:0 0 auto">
+          <div class="card-header">
+            <span class="card-icon">🌐</span>
+            <span class="card-title">CHANNELS</span>
+          </div>
+          <div class="card-body">
+            <div class="channel-list" id="channel-list"></div>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="channel-list" id="channel-list"></div>
-        </div>
-      </div>
-
-      <!-- Devices -->
-      <div class="card">
-        <div class="card-header">
-          <span class="card-icon">📡</span>
-          <span class="card-title">DEVICES</span>
-        </div>
-        <div class="card-body">
-          <div class="presence-list" id="presence-list"></div>
+        <div class="card" style="flex:1; min-height:0">
+          <div class="card-header">
+            <span class="card-icon">📡</span>
+            <span class="card-title">DEVICES</span>
+          </div>
+          <div class="card-body">
+            <div class="presence-list" id="presence-list"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -174,7 +145,6 @@
       <span id="ws-status">WS: disconnected</span>
     </footer>
   </div>
-
   <script src="dashboard.js"></script>
 </body>
 </html>
