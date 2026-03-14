@@ -332,21 +332,29 @@ class ActivityTracker {
   _extractTasksFromFile(fp, fileMtime, tasks) {
     try {
       const stat = fs.statSync(fp);
-      const readSize = Math.min(stat.size, 512 * 1024);
+      // Read beginning (for first user message) and end (for last activity)
+      const headSize = Math.min(stat.size, 128 * 1024);
+      const tailSize = Math.min(stat.size, 64 * 1024);
       const fd = fs.openSync(fp, 'r');
-      const buf = Buffer.alloc(readSize);
-      // Read from beginning to get the FIRST user message
-      fs.readSync(fd, buf, 0, readSize, 0);
+
+      const headBuf = Buffer.alloc(headSize);
+      fs.readSync(fd, headBuf, 0, headSize, 0);
+
+      const tailBuf = Buffer.alloc(tailSize);
+      fs.readSync(fd, tailBuf, 0, tailSize, Math.max(0, stat.size - tailSize));
       fs.closeSync(fd);
 
-      const lines = buf.toString('utf8').split('\n').filter(Boolean);
+      // Merge lines, dedup by using a set isn't needed - just process head for first msg, tail for last ts
+      const headLines = headBuf.toString('utf8').split('\n').filter(Boolean);
+      const tailLines = tailBuf.toString('utf8').split('\n').filter(Boolean);
 
       let firstUserMsg = null;
       let lastTs = null;
       let totalToolCalls = 0;
       let lastAssistantText = '';
 
-      for (const line of lines) {
+      // Scan head for first user message and tool counts
+      for (const line of headLines) {
         try {
           const entry = JSON.parse(line);
           if (entry.type !== 'message') continue;
@@ -369,6 +377,28 @@ class ActivityTracker {
               firstUserMsg = { text, ts };
             }
           }
+
+          if (msg.role === 'assistant') {
+            const content = Array.isArray(msg.content) ? msg.content : [];
+            totalToolCalls += content.filter(c => c.type === 'toolCall').length;
+            const texts = content.filter(c => c.type === 'text');
+            if (texts.length > 0) {
+              const full = texts.map(p => p.text || '').join('');
+              const summary = full.split('\n').map(l => l.trim())
+                .filter(l => l && !l.startsWith('#') && !l.startsWith('```') && !l.startsWith('|') && !l.startsWith('-') && l.length > 8)[0]?.slice(0, 80) || '';
+              if (summary) lastAssistantText = summary;
+            }
+          }
+        } catch {}
+      }
+
+      // Scan tail for latest timestamps, tool counts, and last assistant text
+      for (const line of tailLines) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.type !== 'message') continue;
+          const msg = entry.message;
+          if (entry.timestamp) lastTs = entry.timestamp;
 
           if (msg.role === 'assistant') {
             const content = Array.isArray(msg.content) ? msg.content : [];

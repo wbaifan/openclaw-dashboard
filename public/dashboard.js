@@ -224,10 +224,10 @@ function renderTaskLog(d) {
   log.innerHTML = tasks.map(t => {
     const startTime = fmtTime(t.startedAt);
     const elapsed = now - new Date(t.lastActivityAt).getTime();
-    // Active if last activity within 5 minutes
-    const isActive = elapsed < 5 * 60 * 1000;
-    // Recent if within 30 minutes
-    const isRecent = elapsed < 30 * 60 * 1000;
+    // Active if last activity within 15 minutes
+    const isActive = elapsed < 15 * 60 * 1000;
+    // Recent if within 2 hours
+    const isRecent = elapsed < 2 * 3600 * 1000;
     const status = isActive ? 'active' : isRecent ? 'recent' : 'done';
     const statusLabel = isActive ? '进行中' : isRecent ? '刚完成' : '已完成';
     const statusClass = isActive ? 'task-active' : isRecent ? 'task-recent' : 'task-done';
