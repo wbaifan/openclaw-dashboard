@@ -82,8 +82,8 @@ body{background:var(--bg);color:var(--text);font-family:'JetBrains Mono',monospa
 .cost-bars{display:flex;flex-direction:column;gap:8px}
 .cost-bar-item{display:flex;flex-direction:column;gap:2px}
 .cost-bar-header{display:flex;justify-content:space-between;font-size:.6em;color:var(--text2)}
-.cost-bar-track{height:5px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
-.cost-bar-fill{height:100%;border-radius:2px;transition:width 1s;box-shadow:0 0 5px currentColor}
+.cost-bar-track{height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden}
+.cost-bar-fill{height:100%;border-radius:4px;transition:width 1s}
 
 /* === ROW 2: Sessions | Task Log | Activity === */
 .session-list,.task-log,.activity-feed{display:flex;flex-direction:column;gap:2px;overflow-y:auto;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
