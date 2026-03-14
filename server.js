@@ -303,7 +303,113 @@ class ActivityTracker {
       recent: this.recentActivity.slice(0, 30),
       stats: { ...this.stats },
       hourlyActivity: [...this.hourlyActivity],
+      tasks: this._extractTasks(),
     };
+  }
+
+  // Extract task summaries from session logs
+  _extractTasks() {
+    const tasks = [];
+    try {
+      const files = fs.readdirSync(SESSIONS_DIR).filter(f => f.endsWith('.jsonl'));
+      const fileStats = files.map(f => {
+        const fp = path.join(SESSIONS_DIR, f);
+        try { return { fp, mtime: fs.statSync(fp).mtimeMs, name: f }; } catch { return null; }
+      }).filter(Boolean).sort((a, b) => b.mtime - a.mtime);
+
+      // Scan recent files (last 48h)
+      const cutoff = Date.now() - 48 * 3600 * 1000;
+      for (const { fp, mtime } of fileStats.filter(f => f.mtime > cutoff).slice(0, 8)) {
+        this._extractTasksFromFile(fp, mtime, tasks);
+      }
+
+      // Sort by start time descending
+      tasks.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+      return tasks.slice(0, 15);
+    } catch { return []; }
+  }
+
+  _extractTasksFromFile(fp, fileMtime, tasks) {
+    try {
+      // Read the file (up to 256KB from end)
+      const stat = fs.statSync(fp);
+      const readSize = Math.min(stat.size, 256 * 1024);
+      const fd = fs.openSync(fp, 'r');
+      const buf = Buffer.alloc(readSize);
+      fs.readSync(fd, buf, 0, readSize, Math.max(0, stat.size - readSize));
+      fs.closeSync(fd);
+
+      const lines = buf.toString('utf8').split('\n').filter(Boolean);
+
+      // Track conversation segments: each user message starts a "task"
+      let currentTask = null;
+      let lastAssistantText = '';
+      let lastTs = null;
+
+      for (const line of lines) {
+        try {
+          const entry = JSON.parse(line);
+          if (entry.type !== 'message') continue;
+          const msg = entry.message;
+          const ts = entry.timestamp;
+
+          if (msg.role === 'user') {
+            // Save previous task
+            if (currentTask) {
+              currentTask.lastActivityAt = lastTs || currentTask.startedAt;
+              if (lastAssistantText) currentTask.result = lastAssistantText;
+              tasks.push(currentTask);
+            }
+
+            // Extract user message text
+            let text = typeof msg.content === 'string' ? msg.content
+              : Array.isArray(msg.content) ? msg.content.filter(c => c.type === 'text').map(c => c.text).join('') : '';
+
+            // Clean system noise
+            text = text.replace(/^System:.*$/gm, '').replace(/^Conversation info.*$/gm, '')
+              .replace(/^Sender.*$/gm, '').replace(/```json[\s\S]*?```/g, '')
+              .replace(/\[media attached:.*?\]/g, '[📎]').replace(/\[image data.*?\]/g, '')
+              .split('\n').map(l => l.trim())
+              .filter(l => l && l.length > 3 && !l.startsWith('{') && !l.startsWith('"') && !l.startsWith('Read HEARTBEAT'))[0] || '';
+
+            if (!text || text === '[📎]' || text.startsWith('A new session was started')) {
+              currentTask = null;
+              continue;
+            }
+
+            currentTask = {
+              task: text.slice(0, 80),
+              startedAt: ts,
+              lastActivityAt: ts,
+              toolCount: 0,
+              result: null,
+              sessionFile: path.basename(fp, '.jsonl').slice(0, 8),
+            };
+            lastAssistantText = '';
+            lastTs = ts;
+
+          } else if (msg.role === 'assistant' && currentTask) {
+            const content = Array.isArray(msg.content) ? msg.content : [];
+            const tools = content.filter(c => c.type === 'toolCall');
+            const texts = content.filter(c => c.type === 'text');
+            currentTask.toolCount += tools.length;
+            if (texts.length > 0) {
+              const full = texts.map(p => p.text || '').join('');
+              lastAssistantText = full.split('\n').map(l => l.trim())
+                .filter(l => l && !l.startsWith('#') && !l.startsWith('```') && !l.startsWith('|') && l.length > 5)[0]?.slice(0, 60) || '';
+            }
+            lastTs = ts;
+          }
+        } catch {}
+      }
+
+      // Save last task
+      if (currentTask) {
+        currentTask.lastActivityAt = lastTs || currentTask.startedAt;
+        if (lastAssistantText) currentTask.result = lastAssistantText;
+        tasks.push(currentTask);
+      }
+    } catch {}
   }
 }
 

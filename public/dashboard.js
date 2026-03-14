@@ -216,8 +216,42 @@ function renderPresence(d) {
   }).join('');
 }
 
+function renderTaskLog(d) {
+  const tasks = d.activity?.tasks || [];
+  const log = $('task-log');
+  if (!log) return;
+  if (!tasks.length) { log.innerHTML = '<div class="empty">暂无任务记录</div>'; return; }
+
+  const now = Date.now();
+  log.innerHTML = tasks.map(t => {
+    const startTime = fmtTime(t.startedAt);
+    const elapsed = now - new Date(t.lastActivityAt).getTime();
+    // Active if last activity within 5 minutes
+    const isActive = elapsed < 5 * 60 * 1000;
+    // Recent if within 30 minutes
+    const isRecent = elapsed < 30 * 60 * 1000;
+    const status = isActive ? 'active' : isRecent ? 'recent' : 'done';
+    const statusLabel = isActive ? '进行中' : isRecent ? '刚完成' : '已完成';
+    const statusClass = isActive ? 'task-active' : isRecent ? 'task-recent' : 'task-done';
+
+    const toolBadge = t.toolCount > 0 ? `<span class="task-tools">🔧${t.toolCount}</span>` : '';
+    const resultLine = t.result ? `<div class="task-result">${esc(t.result)}</div>` : '';
+
+    return `
+      <div class="task-item ${statusClass}">
+        <div class="task-main">
+          <span class="task-time">${startTime}</span>
+          <span class="task-desc">${esc(t.task)}</span>
+          <span class="task-status">${statusLabel}</span>
+          ${toolBadge}
+        </div>
+        ${resultLine}
+      </div>`;
+  }).join('');
+}
+
 function renderAll(d) {
-  renderVersion(d); renderHealth(d); renderUsageCost(d); renderSessions(d); renderActivity(d); renderPresence(d);
+  renderVersion(d); renderHealth(d); renderUsageCost(d); renderSessions(d); renderActivity(d); renderPresence(d); renderTaskLog(d);
   $('last-update').textContent = 'Updated: ' + new Date(d.timestamp).toLocaleTimeString('zh-CN');
 }
 

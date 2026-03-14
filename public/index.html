@@ -92,32 +92,43 @@
         </div>
       </div>
 
-      <!-- R2C1: Sessions -->
-      <div class="card" style="grid-column:1; grid-row:2">
-        <div class="card-header">
-          <span class="card-icon">🔗</span>
-          <span class="card-title">SESSIONS</span>
-          <span class="badge" id="session-count">0</span>
+      <!-- R2C1-2: Sessions + Task Log side by side -->
+      <div style="grid-column:1 / span 2; grid-row:2; display:flex; gap:10px; min-height:0">
+        <!-- Sessions -->
+        <div class="card" style="flex:1; min-width:0">
+          <div class="card-header">
+            <span class="card-icon">🔗</span>
+            <span class="card-title">SESSIONS</span>
+            <span class="badge" id="session-count">0</span>
+          </div>
+          <div class="card-body">
+            <div class="session-list" id="session-list"></div>
+          </div>
         </div>
-        <div class="card-body">
-          <div class="session-list" id="session-list"></div>
+        <!-- Task Log -->
+        <div class="card" style="flex:1; min-width:0">
+          <div class="card-header">
+            <span class="card-icon">🦐</span>
+            <span class="card-title">虾在忙</span>
+          </div>
+          <div class="card-body">
+            <div class="task-log" id="task-log"></div>
+          </div>
         </div>
       </div>
 
-      <!-- R2C2: Live Activity -->
-      <div class="card" style="grid-column:2; grid-row:2">
-        <div class="card-header">
-          <span class="card-icon">⚡</span>
-          <span class="card-title">LIVE ACTIVITY</span>
-          <span class="badge pulse" id="activity-count">0</span>
-        </div>
-        <div class="card-body">
-          <div class="activity-feed" id="activity-feed"></div>
-        </div>
-      </div>
-
-      <!-- R2C3: Channels + Devices stacked -->
+      <!-- R2C3: Activity + Channels + Devices stacked -->
       <div style="grid-column:3; grid-row:2; display:flex; flex-direction:column; gap:10px; min-height:0">
+        <div class="card" style="flex:1; min-height:0">
+          <div class="card-header">
+            <span class="card-icon">⚡</span>
+            <span class="card-title">LIVE ACTIVITY</span>
+            <span class="badge pulse" id="activity-count">0</span>
+          </div>
+          <div class="card-body">
+            <div class="activity-feed" id="activity-feed"></div>
+          </div>
+        </div>
         <div class="card" style="flex:0 0 auto">
           <div class="card-header">
             <span class="card-icon">🌐</span>
@@ -127,7 +138,7 @@
             <div class="channel-list" id="channel-list"></div>
           </div>
         </div>
-        <div class="card" style="flex:1; min-height:0">
+        <div class="card" style="flex:0 0 auto">
           <div class="card-header">
             <span class="card-icon">📡</span>
             <span class="card-title">DEVICES</span>

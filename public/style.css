@@ -224,6 +224,56 @@ body {
 .accent-yellow { color: var(--accent-yellow) !important; }
 .accent-red { color: var(--accent-red) !important; }
 
+/* Task log */
+.task-log {
+  display: flex; flex-direction: column; gap: 3px;
+  overflow-y: auto; flex: 1; min-height: 0;
+  scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+}
+.task-item {
+  padding: 5px 8px; border-radius: 4px; flex-shrink: 0;
+  border-left: 3px solid var(--text-muted);
+  background: rgba(255,255,255,0.01);
+}
+.task-item.task-active {
+  border-left-color: var(--accent-green);
+  background: rgba(0,255,136,0.05);
+}
+.task-item.task-active .task-status {
+  color: var(--accent-green);
+  text-shadow: 0 0 6px var(--accent-green);
+}
+.task-item.task-recent {
+  border-left-color: var(--accent-cyan);
+  background: rgba(0,240,255,0.03);
+}
+.task-item.task-recent .task-status { color: var(--accent-cyan); }
+.task-item.task-done .task-status { color: var(--text-muted); }
+.task-main {
+  display: flex; align-items: center; gap: 6px; font-size: 0.65em;
+}
+.task-time {
+  color: var(--text-muted); white-space: nowrap; min-width: 55px;
+  font-variant-numeric: tabular-nums;
+}
+.task-desc {
+  flex: 1; color: var(--text-primary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.task-status {
+  font-size: 0.85em; font-weight: 500; white-space: nowrap;
+  padding: 1px 5px; border-radius: 3px;
+  background: rgba(255,255,255,0.04);
+}
+.task-tools {
+  font-size: 0.85em; color: var(--accent-purple); white-space: nowrap;
+}
+.task-result {
+  font-size: 0.58em; color: var(--text-secondary);
+  margin-top: 2px; padding-left: 61px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
 /* Empty state */
 .empty { color: var(--text-muted); font-size: 0.75em; padding: 8px; text-align: center; }
 
