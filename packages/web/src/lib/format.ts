@@ -31,7 +31,7 @@ export function fmtTime(iso: string | null | undefined): string {
   });
 }
 
-const CHANNEL_PREFIXES = ['telegram', 'wecom', 'cron', 'feishu', 'discord'] as const;
+const CHANNEL_PREFIXES = ['telegram', 'wecom', 'cron', 'feishu', 'discord', 'subagent'] as const;
 
 export function detectChannel(sessionKey: string): string {
   const key = sessionKey.replace(/^agent:[^:]+:/, '');

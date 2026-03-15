@@ -30,6 +30,7 @@ export interface StatusData {
 
 export interface SessionItem {
   key: string;
+  label?: string;
   totalTokens?: number;
   percentUsed?: number;
   age?: number;

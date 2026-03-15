@@ -5,12 +5,51 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || process.env.USERPROFILE || '/root';
 const OPENCLAW_HOME = path.join(HOME, '.openclaw');
+const AGENT_NAME = process.env.AGENT_NAME || 'main';  // Keep for backward compatibility
+
+/**
+ * Scan all agent directories and return their sessions paths.
+ * Returns an array of { agentName, sessionsDir } objects.
+ */
+export function getAgentSessionsDirs(): { agentName: string; sessionsDir: string }[] {
+  const agentsDir = path.join(OPENCLAW_HOME, 'agents');
+  const result: { agentName: string; sessionsDir: string }[] = [];
+
+  try {
+    const entries = fs.readdirSync(agentsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const sessionsDir = path.join(agentsDir, entry.name, 'sessions');
+      try {
+        // Check if sessions directory exists
+        fs.accessSync(sessionsDir, fs.constants.R_OK);
+        result.push({ agentName: entry.name, sessionsDir });
+      } catch {
+        // Sessions dir doesn't exist or not readable, skip
+      }
+    }
+  } catch {
+    // agents dir doesn't exist, fall through
+  }
+
+  // Fallback: if no agents found, use the default AGENT_NAME for backward compatibility
+  if (result.length === 0) {
+    result.push({
+      agentName: AGENT_NAME,
+      sessionsDir: path.join(OPENCLAW_HOME, 'agents', AGENT_NAME, 'sessions'),
+    });
+  }
+
+  return result;
+}
 
 export const config = {
   port: Number(process.env.PORT) || 3210,
+  host: process.env.HOST || '0.0.0.0',
   gwPort: Number(process.env.GW_PORT || process.env.OPENCLAW_GATEWAY_PORT) || 18789,
   identityFile: path.join(process.cwd(), '.device-identity.json'),
-  sessionsDir: path.join(OPENCLAW_HOME, 'agents/main/sessions'),
+  /** @deprecated Use getAgentSessionsDirs() for multi-agent support */
+  sessionsDir: path.join(OPENCLAW_HOME, 'agents', AGENT_NAME, 'sessions'),
   gwToken: resolveGatewayToken(),
 } as const;
 

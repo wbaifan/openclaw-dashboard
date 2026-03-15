@@ -8,9 +8,13 @@ const SYSTEM_NOISE_PATTERNS: RegExp[] = [
   /^System:.*$/gm,
   /^Conversation info.*$/gm,
   /^Sender.*$/gm,
-  /```json[\s\S]*?```/g,
+  /```[\s\S]*?```/g,  // 匹配所有代码块
   /\[media attached:.*?\]/g,
   /\[image data.*?\]/g,
+  /^When reading .*?\.md.*$/gm,
+  /^Read HEARTBEAT.*$/gm,
+  /^Current time:.*$/gm,
+  /^A new session was started.*$/gm,
 ];
 
 export interface ParsedContent {
@@ -37,31 +41,49 @@ interface ContentPart {
 }
 
 /**
- * Clean system noise from user message text and return the first meaningful line.
+ * Clean system noise from user message text and return meaningful lines.
  */
-export function extractUserText(raw: string, maxLen = 100): string {
+export function extractUserText(raw: string, maxLines = 6, maxLen = 120): string {
   let text = raw;
   for (const pattern of SYSTEM_NOISE_PATTERNS) {
     text = text.replace(pattern, '');
   }
 
-  return text
+  const lines = text
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l && l.length > 3 && !l.startsWith('{') && !l.startsWith('"') && !l.startsWith('Read HEARTBEAT'))[0]
-    ?.slice(0, maxLen) ?? '';
+    .filter((l) => {
+      if (!l) return false;
+      if (l.startsWith('{') || l.startsWith('"')) return false;
+      if (l.startsWith('Read HEARTBEAT') || l.startsWith('When reading')) return false;
+      if (l.startsWith('Current time:')) return false;
+      if (l.startsWith('A new session was started')) return false;
+      if (l.startsWith('```')) return false;
+      if (l.includes('workspace file') || l.includes('exact path')) return false;
+      return true;
+    })
+    .slice(0, maxLines)
+    .map((l) => l.slice(0, maxLen));
+
+  return lines.join('\n');
 }
 
 /**
  * Extract the first meaningful summary line from assistant text.
- * Skips headings, code fences, tables, and list items.
+ * Skips headings, code fences, and tables. Preserves list items.
  */
-export function extractAssistantSummary(fullText: string, maxLen = 80, minLen = 8): string {
-  return fullText
+export function extractAssistantSummary(fullText: string, maxLen = 80, minLen = 3, maxLines = 6): string {
+  // 转换飞书 @ 标签
+  let text = fullText.replace(/<at user_id="[^"]+">([^<]+)<\/at>/g, '@$1');
+  
+  const lines = text
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#') && !l.startsWith('```') && !l.startsWith('|') && !l.startsWith('-') && l.length > minLen)[0]
-    ?.slice(0, maxLen) ?? '';
+    .filter((l) => l && !l.startsWith('#') && !l.startsWith('```') && !l.startsWith('|') && l.length > minLen)
+    .slice(0, maxLines)
+    .map((l) => l.slice(0, maxLen));
+  
+  return lines.join('\n');
 }
 
 /**

@@ -6,19 +6,22 @@ interface SessionsCardProps {
 }
 
 export function SessionsCard({ sessions }: SessionsCardProps) {
+  // 过滤掉 run session（key 包含 :run: 的 session）
+  const filteredSessions = sessions.filter(s => !s.key.includes(':run:'));
+  
   return (
     <div className="card">
       <div className="card-header">
         <span className="card-icon">🔗</span>
         <span className="card-title">SESSIONS</span>
-        <span className="badge">{sessions.length}</span>
+        <span className="badge">{filteredSessions.length}</span>
       </div>
       <div className="card-body">
         <div className="session-list">
-          {sessions.length === 0 ? (
+          {filteredSessions.length === 0 ? (
             <div className="empty">No sessions</div>
           ) : (
-            sessions.map((s) => <SessionRow key={s.key} session={s} />)
+            filteredSessions.map((s) => <SessionRow key={s.key} session={s} />)
           )}
         </div>
       </div>
@@ -28,7 +31,7 @@ export function SessionsCard({ sessions }: SessionsCardProps) {
 
 function SessionRow({ session: s }: { session: SessionItem }) {
   const ch = detectChannel(s.key);
-  const shortKey = s.key
+  const displayText = s.label || s.key
     .replace('agent:main:', '')
     .replace(/:[a-f0-9-]{20,}/g, '')
     .replace(/:\d{6,}/g, '');
@@ -38,7 +41,7 @@ function SessionRow({ session: s }: { session: SessionItem }) {
   return (
     <div className="session-item">
       <span className={`session-channel ${ch}`}>{ch}</span>
-      <span className="session-key" title={s.key}>{shortKey}</span>
+      <span className="session-key" title={s.key}>{displayText}</span>
       <span className="session-tokens">{fmtTokens(s.totalTokens)}</span>
       <div className="ctx-bar">
         <div className="ctx-bar-fill" style={{ width: `${pct}%`, background: ctxColor }} />

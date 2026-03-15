@@ -33,9 +33,9 @@ export function UsageChart({ daily }: UsageChartProps) {
 
     ctx.clearRect(0, 0, w, h);
 
-    const costs = daily.map((d) => d.totalCost || 0);
-    const max = Math.max(...costs, 0.1);
-    const n = costs.length;
+    const tokens = daily.map((d) => d.totalTokens || 0);
+    const max = Math.max(...tokens, 1);
+    const n = tokens.length;
 
     // Grid lines
     ctx.strokeStyle = '#1a2540';
@@ -50,7 +50,9 @@ export function UsageChart({ daily }: UsageChartProps) {
       ctx.fillStyle = '#3a4a6b';
       ctx.font = '9px JetBrains Mono';
       ctx.textAlign = 'right';
-      ctx.fillText('$' + (max * (1 - i / 4)).toFixed(2), pad.l - 5, y + 3);
+      const val = max * (1 - i / 4);
+      const label = val >= 1e6 ? (val / 1e6).toFixed(1) + 'M' : val >= 1e3 ? (val / 1e3).toFixed(1) + 'K' : Math.round(val).toString();
+      ctx.fillText(label, pad.l - 5, y + 3);
     }
 
     if (n < 2) return;
@@ -61,7 +63,7 @@ export function UsageChart({ daily }: UsageChartProps) {
     grd.addColorStop(1, 'rgba(0,240,255,0)');
 
     ctx.beginPath();
-    costs.forEach((c, i) => {
+    tokens.forEach((c, i) => {
       const x = pad.l + (i / (n - 1)) * pw;
       const y = pad.t + ph - (c / max) * ph;
       i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
@@ -74,7 +76,7 @@ export function UsageChart({ daily }: UsageChartProps) {
 
     // Line
     ctx.beginPath();
-    costs.forEach((c, i) => {
+    tokens.forEach((c, i) => {
       const x = pad.l + (i / (n - 1)) * pw;
       const y = pad.t + ph - (c / max) * ph;
       i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
@@ -89,7 +91,7 @@ export function UsageChart({ daily }: UsageChartProps) {
     // Data points (last 7)
     for (let i = Math.max(0, n - 7); i < n; i++) {
       const x = pad.l + (i / (n - 1)) * pw;
-      const y = pad.t + ph - (costs[i] / max) * ph;
+      const y = pad.t + ph - (tokens[i] / max) * ph;
       ctx.beginPath();
       ctx.arc(x, y, 3, 0, Math.PI * 2);
       ctx.fillStyle = i === n - 1 ? '#00ff88' : '#00f0ff';

@@ -1,4 +1,4 @@
-import { fmtTokens, fmtCost } from '../lib/format';
+import { fmtTokens } from '../lib/format';
 import type { UsageCostData } from '../lib/types';
 
 interface TodayCardProps {
@@ -27,8 +27,8 @@ export function TodayCard({ usageCost, hourlyActivity }: TodayCardProps) {
             <div className="stat-label">Tokens</div>
           </div>
           <div className="stat">
-            <div className="stat-value accent-green">{fmtCost(today?.totalCost)}</div>
-            <div className="stat-label">Cost</div>
+            <div className="stat-value accent-green">{fmtTokens(today?.input)}</div>
+            <div className="stat-label">Input</div>
           </div>
           <div className="stat">
             <div className="stat-value accent-cyan">{fmtTokens(today?.output)}</div>

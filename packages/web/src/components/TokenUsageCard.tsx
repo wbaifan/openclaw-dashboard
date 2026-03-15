@@ -1,4 +1,4 @@
-import { fmtTokens, fmtCost, fmtPct } from '../lib/format';
+import { fmtTokens, fmtPct } from '../lib/format';
 import { UsageChart } from './UsageChart';
 import type { UsageCostData } from '../lib/types';
 
@@ -26,8 +26,8 @@ export function TokenUsageCard({ usageCost }: TokenUsageCardProps) {
             <div className="metric-label">Total Tokens</div>
           </div>
           <div className="metric">
-            <div className="metric-value accent-green">{fmtCost(t?.totalCost)}</div>
-            <div className="metric-label">Total Cost</div>
+            <div className="metric-value accent-green">{fmtTokens(t?.input)}</div>
+            <div className="metric-label">Input</div>
           </div>
           <div className="metric">
             <div className="metric-value accent-cyan">{fmtPct(t ? cacheRate : undefined)}</div>
