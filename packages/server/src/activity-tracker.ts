@@ -396,6 +396,8 @@ export class ActivityTracker {
       'OpenClaw runtime context',
       'Internal task completion event',
       'Pre-compaction memory flush',
+      'Exec completed',
+      'System: [2026',
     ];
     
     for (const pattern of systemPatterns) {
@@ -419,7 +421,7 @@ export class ActivityTracker {
    * Similar to extractAssistantSummary but optimized for user messages.
    * Preserves list items, removes noise, handles multi-line content.
    */
-  private _extractTaskSummary(raw: string, maxLen = 120, maxLines = 6): string {
+  private _extractTaskSummary(raw: string, maxLen = 200, maxLines = 10): string {
     // Remove Feishu message_id prefix if present
     let text = raw.replace(/\[message_id=[^\]]+\]\s*\n*/g, '');
     
@@ -433,7 +435,7 @@ export class ActivityTracker {
       .filter(l => {
         if (!l) return false;
         // Skip noise patterns
-        if (l.startsWith('```') || l.startsWith('|')) return false;
+        if (l.startsWith('```')) return false;
         if (l.startsWith('{') || l.startsWith('"')) return false;
         if (l.includes('workspace file') || l.includes('exact path')) return false;
         return true;

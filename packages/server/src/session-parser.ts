@@ -43,7 +43,7 @@ interface ContentPart {
 /**
  * Clean system noise from user message text and return meaningful lines.
  */
-export function extractUserText(raw: string, maxLines = 6, maxLen = 120): string {
+export function extractUserText(raw: string, maxLines = 10, maxLen = 200): string {
   let text = raw;
   for (const pattern of SYSTEM_NOISE_PATTERNS) {
     text = text.replace(pattern, '');
@@ -58,7 +58,6 @@ export function extractUserText(raw: string, maxLines = 6, maxLen = 120): string
       if (l.startsWith('Read HEARTBEAT') || l.startsWith('When reading')) return false;
       if (l.startsWith('Current time:')) return false;
       if (l.startsWith('A new session was started')) return false;
-      if (l.startsWith('```')) return false;
       if (l.includes('workspace file') || l.includes('exact path')) return false;
       return true;
     })
@@ -72,14 +71,14 @@ export function extractUserText(raw: string, maxLines = 6, maxLen = 120): string
  * Extract the first meaningful summary line from assistant text.
  * Skips headings, code fences, and tables. Preserves list items.
  */
-export function extractAssistantSummary(fullText: string, maxLen = 80, minLen = 3, maxLines = 6): string {
+export function extractAssistantSummary(fullText: string, maxLen = 200, minLen = 3, maxLines = 10): string {
   // 转换飞书 @ 标签
   let text = fullText.replace(/<at user_id="[^"]+">([^<]+)<\/at>/g, '@$1');
   
   const lines = text
     .split('\n')
     .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#') && !l.startsWith('```') && !l.startsWith('|') && l.length > minLen)
+    .filter((l) => l && !l.startsWith('```') && l.length > minLen)
     .slice(0, maxLines)
     .map((l) => l.slice(0, maxLen));
   

@@ -670,9 +670,123 @@ body {
   color: var(--text);
   line-height: 1.4;
   display: -webkit-box;
-  -webkit-line-clamp: 6;
+  -webkit-line-clamp: 10;
   -webkit-box-orient: vertical;
   overflow: hidden;
+}
+
+.task-result {
+  font-size: 0.52em;
+  color: var(--text2);
+  margin-top: 4px;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 10;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.result-arrow {
+  color: var(--cyan);
+  margin-right: 4px;
+}
+
+/* Markdown 内容样式 */
+.markdown-content p {
+  margin: 0 0 4px 0;
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4 {
+  margin: 4px 0;
+  font-weight: 600;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 2px 0;
+  padding-left: 16px;
+}
+
+.markdown-content li {
+  margin: 2px 0;
+}
+
+.markdown-content code {
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 4px;
+  border-radius: 2px;
+  font-family: 'Fira Code', monospace;
+  font-size: 0.95em;
+}
+
+.markdown-content pre {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 8px;
+  border-radius: 4px;
+  overflow-x: auto;
+  margin: 4px 0;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4px 0;
+  font-size: 0.95em;
+}
+
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid var(--border);
+  padding: 2px 6px;
+  text-align: left;
+}
+
+.markdown-content th {
+  background: rgba(255, 255, 255, 0.05);
+  font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.markdown-content blockquote {
+  border-left: 2px solid var(--cyan);
+  padding-left: 8px;
+  margin: 4px 0;
+  color: var(--text3);
+}
+
+.markdown-content a {
+  color: var(--cyan);
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-content hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+  color: var(--text);
 }
 
 .task-status {
@@ -689,17 +803,6 @@ body {
   font-size: 0.85em;
   color: var(--purple);
   white-space: nowrap;
-}
-
-.task-result {
-  font-size: 0.52em;
-  color: var(--text2);
-  margin-top: 2px;
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }
 
 /* ── Activity Feed ──────────────────────────────────────── */
