@@ -7,10 +7,12 @@ A cyberpunk-style real-time monitoring dashboard for [OpenClaw](https://github.c
 ## Features
 
 - **Token Usage** — 30-day trend chart with daily cost breakdown
-- **Today's Stats** — tokens, cost, output, cache read + hourly activity heatmap
+- **Today's Stats** — tokens, cost, output, cache read + hourly activity heatmap (timezone-aware)
 - **Cost Breakdown** — visual bar chart of cache write/read, output, and input costs
 - **Sessions** — active sessions with channel badges, token counts, and context window usage bars
 - **Task Log** — auto-extracted task summaries from session logs with status indicators
+  - **Markdown Rendering** — supports tables, code blocks, lists, and headers
+  - **Feishu Card Compatible** — auto-converts tables to lists for Feishu compatibility
 - **Live Activity** — real-time feed of messages, tool calls, and user interactions
 - **Channels & Devices** — health status of connected channels and devices in the header
 

@@ -155,7 +155,7 @@ export class ActivityTracker {
       const stat = fs.statSync(filePath);
       const offset = Math.max(0, stat.size - HISTORY_READ_BYTES);
       const lines = readFileRegionLines(filePath, offset, HISTORY_READ_BYTES);
-      const entries = parseJsonLines(lines.slice(-50));
+      const entries = parseJsonLines(lines);  // 读取所有行，不只是最后50行
 
       for (const entry of entries) {
         this._processEntry(entry, filePath);
@@ -264,8 +264,10 @@ export class ActivityTracker {
   }
 
   private _recordTimestamp(ts: string): void {
-    const hour = new Date(ts).getHours();
-    this._hourlyActivity[hour] = (this._hourlyActivity[hour] || 0) + 1;
+    // Use local timezone hour for correct display
+    const date = new Date(ts);
+    const localHour = date.getHours();  // getHours() returns local timezone hour
+    this._hourlyActivity[localHour] = (this._hourlyActivity[localHour] || 0) + 1;
     this._stats.lastActivityAt = ts;
   }
 
