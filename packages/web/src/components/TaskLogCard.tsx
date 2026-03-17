@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { fmtTime } from '../lib/format';
 import type { TaskItem } from '../lib/types';
 import ReactMarkdown from 'react-markdown';
@@ -45,7 +46,7 @@ function convertToFeishuCardMarkdown(text: string): string {
   return result;
 }
 
-export function TaskLogCard({ tasks }: TaskLogCardProps) {
+export const TaskLogCard = memo(function TaskLogCard({ tasks }: TaskLogCardProps) {
   return (
     <div className="card">
       <div className="card-header">
@@ -63,20 +64,25 @@ export function TaskLogCard({ tasks }: TaskLogCardProps) {
       </div>
     </div>
   );
-}
+});
 
-function TaskRow({ task: t }: { task: TaskItem }) {
-  const now = Date.now();
-  const elapsed = now - new Date(t.lastActivityAt).getTime();
-  const isActive = elapsed < 15 * 60 * 1000;
-  const isRecent = elapsed < 2 * 3600 * 1000;
+const TaskRow = memo(function TaskRow({ task: t }: { task: TaskItem }) {
+  // 使用 useMemo 缓存计算结果
+  const { isActive, isRecent, statusClass, statusLabel, taskMarkdown, resultMarkdown } = useMemo(() => {
+    const now = Date.now();
+    const elapsed = now - new Date(t.lastActivityAt).getTime();
+    const isActive = elapsed < 15 * 60 * 1000;
+    const isRecent = elapsed < 2 * 3600 * 1000;
 
-  const statusClass = isActive ? 'task-active' : isRecent ? 'task-recent' : 'task-done';
-  const statusLabel = isActive ? '进行中' : isRecent ? '刚完成' : '已完成';
+    const statusClass = isActive ? 'task-active' : isRecent ? 'task-recent' : 'task-done';
+    const statusLabel = isActive ? '进行中' : isRecent ? '刚完成' : '已完成';
 
-  // 转换 Markdown 为飞书 Card 兼容格式
-  const taskMarkdown = convertToFeishuCardMarkdown(t.task);
-  const resultMarkdown = t.result ? convertToFeishuCardMarkdown(t.result) : null;
+    // 转换 Markdown 为飞书 Card 兼容格式
+    const taskMarkdown = convertToFeishuCardMarkdown(t.task);
+    const resultMarkdown = t.result ? convertToFeishuCardMarkdown(t.result) : null;
+    
+    return { isActive, isRecent, statusClass, statusLabel, taskMarkdown, resultMarkdown };
+  }, [t]);
 
   return (
     <div className={`task-item ${statusClass}`}>
@@ -96,4 +102,4 @@ function TaskRow({ task: t }: { task: TaskItem }) {
       )}
     </div>
   );
-}
+});

@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { fmtTokens, fmtPct } from '../lib/format';
 import { UsageChart } from './UsageChart';
 import type { UsageCostData } from '../lib/types';
@@ -6,7 +7,7 @@ interface TokenUsageCardProps {
   usageCost?: UsageCostData;
 }
 
-export function TokenUsageCard({ usageCost }: TokenUsageCardProps) {
+export const TokenUsageCard = memo(function TokenUsageCard({ usageCost }: TokenUsageCardProps) {
   const t = usageCost?.totals;
   const daily = usageCost?.daily ?? [];
 
@@ -44,4 +45,4 @@ export function TokenUsageCard({ usageCost }: TokenUsageCardProps) {
       </div>
     </div>
   );
-}
+});

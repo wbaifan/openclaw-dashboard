@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { fmtTokens, timeAgo, detectChannel } from '../lib/format';
 import type { SessionItem } from '../lib/types';
 
@@ -5,9 +6,13 @@ interface SessionsCardProps {
   sessions: SessionItem[];
 }
 
-export function SessionsCard({ sessions }: SessionsCardProps) {
+export const SessionsCard = memo(function SessionsCard({ sessions }: SessionsCardProps) {
   // 过滤掉 run session（key 包含 :run: 的 session）
-  const filteredSessions = sessions.filter(s => !s.key.includes(':run:'));
+  // 使用 useMemo 缓存过滤结果
+  const filteredSessions = useMemo(
+    () => sessions.filter(s => !s.key.includes(':run:')),
+    [sessions]
+  );
   
   return (
     <div className="card">
@@ -27,9 +32,9 @@ export function SessionsCard({ sessions }: SessionsCardProps) {
       </div>
     </div>
   );
-}
+});
 
-function SessionRow({ session: s }: { session: SessionItem }) {
+const SessionRow = memo(function SessionRow({ session: s }: { session: SessionItem }) {
   const ch = detectChannel(s.key);
   const displayText = s.label || s.key
     .replace('agent:main:', '')
@@ -50,4 +55,4 @@ function SessionRow({ session: s }: { session: SessionItem }) {
       <span className="session-time">{timeAgo(s.age)}</span>
     </div>
   );
-}
+});

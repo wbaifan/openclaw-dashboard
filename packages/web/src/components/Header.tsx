@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { useClock } from '../hooks/useClock';
 import type { DashboardMetrics, ChannelHealth } from '../lib/types';
 
@@ -5,33 +6,38 @@ interface HeaderProps {
   data: DashboardMetrics | null;
 }
 
-export function Header({ data }: HeaderProps) {
+export const Header = memo(function Header({ data }: HeaderProps) {
   const clock = useClock();
 
-  const health = data?.health;
-  const status = data?.status;
-  const presence = data?.presence ?? [];
-  const stats = data?.activity?.stats;
-  const sessions = status?.sessions?.recent ?? [];
+  // 使用 useMemo 缓存计算结果
+  const { healthClass, healthLabel, channelEntries, activePresence, shownPresence, stats, sessions } = useMemo(() => {
+    const health = data?.health;
+    const status = data?.status;
+    const presence = data?.presence ?? [];
+    const stats = data?.activity?.stats;
+    const sessions = status?.sessions?.recent ?? [];
 
-  let healthClass = 'disconnected';
-  let healthLabel = 'NO DATA';
-  if (health) {
-    healthClass = health.ok ? 'healthy' : 'degraded';
-    healthLabel = health.ok ? 'HEALTHY' : 'DEGRADED';
-  }
+    let healthClass = 'disconnected';
+    let healthLabel = 'NO DATA';
+    if (health) {
+      healthClass = health.ok ? 'healthy' : 'degraded';
+      healthLabel = health.ok ? 'HEALTHY' : 'DEGRADED';
+    }
 
-  const channelEntries = Object.entries(health?.channels ?? {});
+    const channelEntries = Object.entries(health?.channels ?? {});
 
-  const activePresence = presence.filter((p) => p.reason !== 'disconnect');
-  const shownPresence = activePresence.length > 0 ? activePresence : presence;
+    const activePresence = presence.filter((p) => p.reason !== 'disconnect');
+    const shownPresence = activePresence.length > 0 ? activePresence : presence;
+    
+    return { healthClass, healthLabel, channelEntries, activePresence, shownPresence, stats, sessions };
+  }, [data]);
 
   return (
     <header className="header">
       <div className="header-left">
         <span className="logo">🦞</span>
         <h1>OPENCLAW</h1>
-        <span className="version">v{status?.runtimeVersion ?? '--'}</span>
+        <span className="version">v{data?.status?.runtimeVersion ?? '--'}</span>
       </div>
       <div className="header-center">
         <div className="live-counters">
@@ -54,7 +60,7 @@ export function Header({ data }: HeaderProps) {
           {channelEntries.map(([name, ch]) => {
             const { probe, configured } = ch as ChannelHealth;
             const ok = probe?.ok || configured;
-            const label = health?.channelLabels?.[name] ?? name;
+            const label = data?.health?.channelLabels?.[name] ?? name;
             return (
               <span key={name} className="inline-item">
                 <span className={`inline-dot ${ok ? 'ok' : 'error'}`} />
@@ -85,4 +91,4 @@ export function Header({ data }: HeaderProps) {
       </div>
     </header>
   );
-}
+});

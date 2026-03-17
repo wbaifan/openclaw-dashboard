@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { fmtTime } from '../lib/format';
 import type { ActivityItem } from '../lib/types';
 
@@ -5,7 +6,7 @@ interface ActivityCardProps {
   recent: ActivityItem[];
 }
 
-export function ActivityCard({ recent }: ActivityCardProps) {
+export const ActivityCard = memo(function ActivityCard({ recent }: ActivityCardProps) {
   return (
     <div className="card">
       <div className="card-header">
@@ -24,9 +25,9 @@ export function ActivityCard({ recent }: ActivityCardProps) {
       </div>
     </div>
   );
-}
+});
 
-function ActivityRow({ activity: a }: { activity: ActivityItem }) {
+const ActivityRow = memo(function ActivityRow({ activity: a }: { activity: ActivityItem }) {
   const typeClass =
     a.type === 'tool_call'
       ? 'activity-tool'
@@ -41,4 +42,4 @@ function ActivityRow({ activity: a }: { activity: ActivityItem }) {
       <span className="activity-text">{a.text || a.tool || a.type}</span>
     </div>
   );
-}
+});

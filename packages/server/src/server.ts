@@ -11,7 +11,7 @@ import { collectMetrics, type DashboardMetrics } from './metrics.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPDATE_INTERVAL_MS = 10000;
 const STARTUP_DELAY_MS = 3000;
-const DEBOUNCE_MS = 500; // Debounce activity updates to avoid spamming
+const DEBOUNCE_MS = 100; // Debounce activity updates to avoid spamming
 
 // ── Express & WebSocket Setup ──────────────────────────────
 

@@ -657,7 +657,7 @@ export class ActivityTracker {
 
   private _addActivity(activity: ActivityItem): void {
     // 如果是 tool_call，先删除同类型的旧消息（每种工具只保留最新一条）
-    if (activity.type === 'tool_call') {
+    if (activity.type === 'tool_call' && activity.tool !== 'sessions_spawn') {
       this._recentActivity = this._recentActivity.filter(a => 
         !(a.type === 'tool_call' && a.tool === activity.tool)
       );

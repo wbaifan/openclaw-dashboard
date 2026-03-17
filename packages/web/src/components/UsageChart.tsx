@@ -1,11 +1,11 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { memo, useRef, useEffect, useCallback } from 'react';
 import type { DailyUsage } from '../lib/types';
 
 interface UsageChartProps {
   daily: DailyUsage[];
 }
 
-export function UsageChart({ daily }: UsageChartProps) {
+export const UsageChart = memo(function UsageChart({ daily }: UsageChartProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const draw = useCallback(() => {
@@ -121,4 +121,4 @@ export function UsageChart({ daily }: UsageChartProps) {
   }, [draw]);
 
   return <canvas ref={canvasRef} height={80} />;
-}
+});

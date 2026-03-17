@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { memo, useState, useEffect } from 'react';
 import type { WsStatus } from '../hooks/useMetrics';
 
 interface FooterProps {
@@ -15,7 +15,7 @@ const getRelativeTime = (ts: number): string => {
   return `${Math.floor(diff / 3600)}小时前`;
 };
 
-export function Footer({ timestamp, wsStatus }: FooterProps) {
+export const Footer = memo(function Footer({ timestamp, wsStatus }: FooterProps) {
   // Force re-render every second to update time display
   const [, setTick] = useState(0);
 
@@ -46,4 +46,4 @@ export function Footer({ timestamp, wsStatus }: FooterProps) {
       <span style={{ color: wsColor }}>WS: {wsStatus === 'live' ? 'live' : wsStatus === 'connecting' ? 'connecting...' : 'offline'}</span>
     </footer>
   );
-}
+});
