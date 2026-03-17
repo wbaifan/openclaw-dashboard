@@ -16,6 +16,10 @@ const TASK_LOOKBACK_MS = 48 * 3600 * 1000;
 const HISTORY_READ_BYTES = 5 * 1024 * 1024; // Increased to 5MB to handle large session files
 const TAIL_READ_BYTES = 64 * 1024;
 
+// Cache file for incremental scanning
+const CACHE_FILE = path.join(process.env.HOME || '/root', '.openclaw', 'dashboard-cache.json');
+const CACHE_VERSION = 1; // Increment when cache structure changes
+
 export interface ActivityItem {
   type: 'tool_call' | 'message' | 'user_message';
   ts: string;
@@ -50,12 +54,22 @@ export interface ActivitySnapshot {
 
 interface FileState {
   offset: number;
+  mtime?: number;  // File modification time when last scanned
 }
 
 interface SessionFileInfo {
   filePath: string;
   mtime: number;
   agentName: string;  // Which agent this session belongs to
+}
+
+// Cache structure for persistent scanning state
+interface ScanCache {
+  version: number;
+  lastScanTime: number;
+  fileOffsets: Map<string, FileState>;
+  // Stats and activity data are recomputed on each run (not cached)
+  // because they depend on time-based filtering (24h lookback)
 }
 
 function getSessionDisplayId(filePath: string): string {
@@ -72,6 +86,8 @@ export class ActivityTracker {
   private _agentDirs: { agentName: string; sessionsDir: string }[] = [];
   private _onActivity?: () => void;
   private _isLoadingHistory = false; // Flag to prevent callbacks during history load
+  private _lastCacheSaveTime = 0; // For cache save throttling
+  private _cacheSavePending = false; // Flag to track pending saves
 
   /** Set callback to be invoked when new activity is detected. */
   onActivity(callback: () => void): void {
@@ -165,15 +181,54 @@ export class ActivityTracker {
   private _loadHistory(): void {
     this._isLoadingHistory = true; // Prevent callbacks during history load
     try {
+      // Load cached scanning state
+      const cache = this._loadCache();
+      
+      // Clean up stale cache entries (files not seen in recent list)
       const recentFiles = this._listSessionFiles(HISTORY_LOOKBACK_MS);
+      const recentFilePaths = new Set(recentFiles.map(f => f.filePath));
+      let staleEntriesRemoved = 0;
+      
+      for (const [filePath] of cache.fileOffsets) {
+        if (!recentFilePaths.has(filePath)) {
+          cache.fileOffsets.delete(filePath);
+          staleEntriesRemoved++;
+        }
+      }
+      
+      if (staleEntriesRemoved > 0) {
+        console.log('[activity] Removed', staleEntriesRemoved, 'stale cache entries');
+      }
+      
+      let filesScanned = 0;
+      let filesSkipped = 0;
+      let bytesSkipped = 0;
+      
       // Load up to 100 files for complete hourly activity coverage
-      for (const { filePath } of recentFiles.slice(0, 100)) {
-        this._loadRecentFromFile(filePath);
+      for (const { filePath, mtime } of recentFiles.slice(0, 100)) {
+        const cachedState = cache.fileOffsets.get(filePath);
+        
+        // Check if we can skip this file (unchanged since last scan)
+        if (cachedState && cachedState.mtime === mtime) {
+          // File hasn't been modified, skip reading
+          this._fileOffsets.set(filePath, { offset: cachedState.offset, mtime });
+          filesSkipped++;
+          bytesSkipped += cachedState.offset; // Approximate
+          continue;
+        }
+        
+        // File is new or modified, scan it
+        this._loadRecentFromFile(filePath, mtime, cachedState);
+        filesScanned++;
       }
 
       this._recentActivity.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
       this._recentActivity = this._recentActivity.slice(0, MAX_RECENT_ACTIVITY);
-      console.log(`[activity] Loaded ${this._recentActivity.length} historical events from ${this._agentDirs.length} agent(s)`);
+      
+      // Save updated cache
+      this._saveCache();
+      
+      console.log(`[activity] Loaded ${this._recentActivity.length} historical events (scanned ${filesScanned}, skipped ${filesSkipped} files, ~${(bytesSkipped / 1024 / 1024).toFixed(1)}MB saved)`);
     } catch (err) {
       console.error('[activity] History load error:', (err as Error).message);
     } finally {
@@ -181,22 +236,120 @@ export class ActivityTracker {
     }
   }
 
-  private _loadRecentFromFile(filePath: string): void {
+  private _loadRecentFromFile(filePath: string, mtime: number, cachedState?: FileState): void {
     try {
       const stat = fs.statSync(filePath);
+      
+      // If we have a cached state and file hasn't shrunk, read only the new part
+      if (cachedState && stat.size > cachedState.offset) {
+        // Incremental read: only read new data
+        const newBytes = stat.size - cachedState.offset;
+        const lines = readFileRegionLines(filePath, cachedState.offset, newBytes);
+        const entries = parseJsonLines(lines);
+
+        for (const entry of entries) {
+          this._processEntry(entry, filePath);
+        }
+
+        this._fileOffsets.set(filePath, { offset: stat.size, mtime });
+        return;
+      }
+      
+      // Full read: file is new or shrunk (e.g., reset)
       const offset = Math.max(0, stat.size - HISTORY_READ_BYTES);
       const lines = readFileRegionLines(filePath, offset, HISTORY_READ_BYTES);
-      const entries = parseJsonLines(lines);  // 读取所有行，不只是最后50行
+      const entries = parseJsonLines(lines);
 
       for (const entry of entries) {
         this._processEntry(entry, filePath);
       }
 
-      // Set file offset so _readNewEntries can track from here
-      this._fileOffsets.set(filePath, { offset: stat.size });
+      this._fileOffsets.set(filePath, { offset: stat.size, mtime });
     } catch {
       // File may have been removed or be unreadable.
     }
+  }
+
+  // ── Cache Management ────────────────────────────────────
+
+  private _loadCache(): ScanCache {
+    try {
+      const data = fs.readFileSync(CACHE_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      
+      // Validate version
+      if (parsed.version !== CACHE_VERSION) {
+        console.log('[activity] Cache version mismatch, starting fresh');
+        return this._createEmptyCache();
+      }
+      
+      // Convert plain object back to Map
+      const fileOffsets = new Map<string, FileState>();
+      if (parsed.fileOffsets && typeof parsed.fileOffsets === 'object') {
+        for (const [key, value] of Object.entries(parsed.fileOffsets)) {
+          fileOffsets.set(key, value as FileState);
+        }
+      }
+      
+      console.log('[activity] Loaded cache with', fileOffsets.size, 'file states');
+      return { ...parsed, fileOffsets };
+    } catch (err) {
+      // Cache doesn't exist or is invalid, start fresh
+      return this._createEmptyCache();
+    }
+  }
+
+  private _saveCache(): void {
+    const now = Date.now();
+    const MIN_SAVE_INTERVAL = 5000; // 5 seconds
+    
+    // Throttle cache saves to avoid excessive disk writes
+    if (now - this._lastCacheSaveTime < MIN_SAVE_INTERVAL) {
+      if (!this._cacheSavePending) {
+        this._cacheSavePending = true;
+        setTimeout(() => {
+          this._saveCache();
+        }, MIN_SAVE_INTERVAL - (now - this._lastCacheSaveTime));
+      }
+      return;
+    }
+    
+    try {
+      const cache: ScanCache = {
+        version: CACHE_VERSION,
+        lastScanTime: Date.now(),
+        fileOffsets: this._fileOffsets,
+      };
+      
+      // Convert Map to plain object for JSON serialization
+      const serializable = {
+        version: cache.version,
+        lastScanTime: cache.lastScanTime,
+        fileOffsets: Object.fromEntries(cache.fileOffsets),
+      };
+      
+      // Ensure directory exists
+      const dir = path.dirname(CACHE_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      fs.writeFileSync(CACHE_FILE, JSON.stringify(serializable, null, 2));
+      this._lastCacheSaveTime = now;
+      this._cacheSavePending = false;
+      console.log('[activity] Saved cache with', cache.fileOffsets.size, 'file states');
+    } catch (err) {
+      console.error('[activity] Failed to save cache:', (err as Error).message);
+      this._cacheSavePending = false;
+    }
+  }
+
+  private _createEmptyCache(): ScanCache {
+    return {
+      version: CACHE_VERSION,
+      lastScanTime: 0,
+      fileOffsets: new Map<string, FileState>(),
+    };
   }
 
   // ── File Tracking ────────────────────────────────────────
@@ -206,7 +359,10 @@ export class ActivityTracker {
     try {
       const stat = fs.statSync(filePath);
       // Start tracking from end of file (only new entries from now on).
-      this._fileOffsets.set(filePath, { offset: stat.size });
+      this._fileOffsets.set(filePath, { offset: stat.size, mtime: stat.mtimeMs });
+      
+      // Save cache periodically (on new files)
+      this._saveCache();
     } catch {
       // File may not be accessible.
     }
@@ -225,15 +381,20 @@ export class ActivityTracker {
       const stat = fs.statSync(filePath);
       if (stat.size <= state.offset) {
         state.offset = stat.size;
+        state.mtime = stat.mtimeMs;
         return;
       }
 
       const lines = readFileRegionLines(filePath, state.offset, TAIL_READ_BYTES);
       state.offset = stat.size;
+      state.mtime = stat.mtimeMs;
 
       for (const entry of parseJsonLines(lines)) {
         this._processEntry(entry, filePath);
       }
+      
+      // Save cache periodically (on file changes)
+      this._saveCache();
     } catch {
       // File may have been truncated or removed.
     }
