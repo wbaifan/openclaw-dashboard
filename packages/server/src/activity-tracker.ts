@@ -10,10 +10,10 @@ import {
   parseJsonLines,
 } from './session-parser.js';
 
-const MAX_RECENT_ACTIVITY = 500;
+const MAX_RECENT_ACTIVITY = 2000; // Increased to capture all messages from main session
 const HISTORY_LOOKBACK_MS = 24 * 3600 * 1000;
 const TASK_LOOKBACK_MS = 48 * 3600 * 1000;
-const HISTORY_READ_BYTES = 2 * 1024 * 1024;
+const HISTORY_READ_BYTES = 5 * 1024 * 1024; // Increased to 5MB to handle large session files
 const TAIL_READ_BYTES = 64 * 1024;
 
 export interface ActivityItem {
