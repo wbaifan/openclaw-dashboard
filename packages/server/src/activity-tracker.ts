@@ -10,7 +10,7 @@ import {
   parseJsonLines,
 } from './session-parser.js';
 
-const MAX_RECENT_ACTIVITY = 100;
+const MAX_RECENT_ACTIVITY = 500;
 const HISTORY_LOOKBACK_MS = 24 * 3600 * 1000;
 const TASK_LOOKBACK_MS = 48 * 3600 * 1000;
 const HISTORY_READ_BYTES = 2 * 1024 * 1024;
@@ -126,7 +126,7 @@ export class ActivityTracker {
   getSnapshot(): ActivitySnapshot {
     const hourlyActivity = this._computeHourlyActivity();
     return {
-      recent: this._recentActivity.slice(0, 30),
+      recent: this._recentActivity.slice(0, 100),
       stats: { ...this._stats },
       hourlyActivity,
       tasks: this._extractTasks(),
@@ -191,6 +191,9 @@ export class ActivityTracker {
       for (const entry of entries) {
         this._processEntry(entry, filePath);
       }
+
+      // Set file offset so _readNewEntries can track from here
+      this._fileOffsets.set(filePath, { offset: stat.size });
     } catch {
       // File may have been removed or be unreadable.
     }
