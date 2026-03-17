@@ -363,6 +363,13 @@ export class ActivityTracker {
 
       if (!firstUserMsg) return null;
 
+      // Filter out tasks that started more than 48 hours ago
+      const startedAtTime = new Date(firstUserMsg.ts).getTime();
+      const cutoffTime = Date.now() - TASK_LOOKBACK_MS;
+      if (startedAtTime < cutoffTime) {
+        return null;
+      }
+
       // Use the last user message for task display, fall back to first if no last
       const taskText = lastUserMsg || firstUserMsg;
 
