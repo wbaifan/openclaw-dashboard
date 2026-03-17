@@ -136,8 +136,8 @@ export class ActivityTracker {
     this._isLoadingHistory = true; // Prevent callbacks during history load
     try {
       const recentFiles = this._listSessionFiles(HISTORY_LOOKBACK_MS);
-      // Load up to 50 files for complete hourly activity coverage
-      for (const { filePath } of recentFiles.slice(0, 50)) {
+      // Load up to 100 files for complete hourly activity coverage
+      for (const { filePath } of recentFiles.slice(0, 100)) {
         this._loadRecentFromFile(filePath);
       }
 
