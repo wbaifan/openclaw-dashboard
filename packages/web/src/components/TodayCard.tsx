@@ -12,7 +12,7 @@ export function TodayCard({ usageCost, hourlyActivity }: TodayCardProps) {
 
   const hourly = hourlyActivity ?? new Array(24).fill(0);
   const maxH = Math.max(...hourly, 1);
-  const now = new Date().getHours();
+  const now = new Date().getHours(); // 使用用户本地时区的当前小时
 
   return (
     <div className="card">

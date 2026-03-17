@@ -20,13 +20,13 @@ export function formatRelativeTime(timestamp: number): string {
   } else if (days < 7) {
     return `${days}天前`;
   } else {
-    // For older timestamps, show the actual date
+    // For older timestamps, show the actual date in user's local timezone
     const date = new Date(timestamp);
     return date.toLocaleDateString('zh-CN', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
     });
   }
 }

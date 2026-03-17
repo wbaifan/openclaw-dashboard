@@ -8,17 +8,27 @@ import {
   parseMessageContent,
   readFileRegionLines,
   parseJsonLines,
+  Message,
+  ContentPart,
 } from './session-parser.js';
 
 const MAX_RECENT_ACTIVITY = 100; // Number of recent activities to keep in memory
 const HISTORY_LOOKBACK_MS = 24 * 3600 * 1000;
-const TASK_LOOKBACK_MS = 48 * 3600 * 1000;
+const TASK_LOOKBACK_MS = 7 * 24 * 3600 * 1000; // 7 days to show more historical tasks
 const HISTORY_READ_BYTES = 5 * 1024 * 1024; // Increased to 5MB to handle large session files
 const TAIL_READ_BYTES = 64 * 1024;
 
+/**
+ * Get local date string in YYYY-MM-DD format.
+ * Uses local timezone instead of UTC.
+ */
+function getLocalDateString(date: Date = new Date()): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
 // Cache file for incremental scanning
 const CACHE_FILE = path.join(process.env.HOME || '/root', '.openclaw', 'dashboard-cache.json');
-const CACHE_VERSION = 1; // Increment when cache structure changes
+const CACHE_VERSION = 3; // Increment when cache structure changes (v3: added hourlyBuckets)
 
 export interface ActivityItem {
   type: 'tool_call' | 'message' | 'user_message';
@@ -34,6 +44,7 @@ export interface ActivityStats {
   toolCalls: number;
   errors: number;
   lastActivityAt: string | null;
+  date: string | null;  // 记录统计日期 (YYYY-MM-DD)
 }
 
 export interface TaskItem {
@@ -68,8 +79,9 @@ interface ScanCache {
   version: number;
   lastScanTime: number;
   fileOffsets: Map<string, FileState>;
-  // Stats and activity data are recomputed on each run (not cached)
-  // because they depend on time-based filtering (24h lookback)
+  activities?: ActivityItem[];  // Cached recent activity (v2)
+  hourlyBuckets?: Map<string, number[]>; // Cached hourly activity data (v3)
+  stats?: ActivityStats | null;  // Cached stats (v3): date-based statistics
 }
 
 function getSessionDisplayId(filePath: string): string {
@@ -79,7 +91,7 @@ function getSessionDisplayId(filePath: string): string {
 export class ActivityTracker {
   private _fileOffsets = new Map<string, FileState>();
   private _recentActivity: ActivityItem[] = [];
-  private _stats: ActivityStats = { messages: 0, toolCalls: 0, errors: 0, lastActivityAt: null };
+  private _stats: ActivityStats = { messages: 0, toolCalls: 0, errors: 0, lastActivityAt: null, date: null };
   private _hourlyBuckets: Map<string, number[]> = new Map(); // hourKey -> timestamps
   private _lastSnapshotTime = 0;
   private _cachedHourlyActivity: number[] | null = null;
@@ -142,14 +154,14 @@ export class ActivityTracker {
   getSnapshot(): ActivitySnapshot {
     const hourlyActivity = this._computeHourlyActivity();
     return {
-      recent: this._recentActivity.slice(0, 100),
+      recent: this._recentActivity.slice(0, 30),
       stats: { ...this._stats },
       hourlyActivity,
       tasks: this._extractTasks(),
     };
   }
 
-  /** Compute hourly activity for the last 24 hours (with 1-minute cache). */
+  /** Compute hourly activity for last 24 hours (with 1-minute cache). */
   private _computeHourlyActivity(): number[] {
     const now = Date.now();
     
@@ -158,15 +170,22 @@ export class ActivityTracker {
       return this._cachedHourlyActivity;
     }
     
-    const lookbackMs = 24 * 3600 * 1000;
     const hourlyActivity = new Array<number>(24).fill(0);
     
     this._hourlyBuckets.forEach((timestamps, hourKey) => {
-      // Count timestamps within the last 24 hours
-      const count = timestamps.filter(t => now - t < lookbackMs).length;
-      const hour = parseInt(hourKey.split('T')[1]);
-      if (hour >= 0 && hour < 24) {
-        hourlyActivity[hour] += count;
+      const [datePart, hourPart] = hourKey.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const hour = parseInt(hourPart);
+      
+      // Calculate the timestamp for this hour bucket
+      const hourTimestamp = new Date(year, month, day, hour).getTime();
+      const hoursAgo = (now - hourTimestamp) / (1000 * 60 * 60);
+      
+      // Only count data from last 24 hours
+      if (hoursAgo >= 0 && hoursAgo < 24) {
+        // Position is hour itself (0-23) - direct mapping for frontend
+        // Frontend expects: index 0 = 0:00, index 1 = 1:00, ..., index 23 = 23:00
+        hourlyActivity[hour] = timestamps.length;
       }
     });
     
@@ -184,8 +203,14 @@ export class ActivityTracker {
       // Load cached scanning state
       const cache = this._loadCache();
       
+      // Check if we have valid cached stats from today
+      const hasCachedStats = cache.stats && cache.stats.date === getLocalDateString();
+      
       // Clean up stale cache entries (files not seen in recent list)
-      const recentFiles = this._listSessionFiles(HISTORY_LOOKBACK_MS);
+      const recentFiles = this._listSessionFiles(HISTORY_LOOKBACK_MS, { 
+        includeDeletedArchives: true,
+        includeResetArchives: true 
+      });
       const recentFilePaths = new Set(recentFiles.map(f => f.filePath));
       let staleEntriesRemoved = 0;
       
@@ -205,7 +230,7 @@ export class ActivityTracker {
       let bytesSkipped = 0;
       
       // Load up to 100 files for complete hourly activity coverage
-      for (const { filePath, mtime } of recentFiles.slice(0, 100)) {
+      for (const { filePath, mtime } of recentFiles) {
         const cachedState = cache.fileOffsets.get(filePath);
         
         // Check if we can skip this file (unchanged since last scan)
@@ -225,15 +250,77 @@ export class ActivityTracker {
       this._recentActivity.sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime());
       this._recentActivity = this._recentActivity.slice(0, MAX_RECENT_ACTIVITY);
       
+      // Recompute stats from complete history if not cached
+      if (!hasCachedStats) {
+        this._computeStatsFromHistory();
+      }
+      
       // Save updated cache
       this._saveCache();
       
       console.log(`[activity] Loaded ${this._recentActivity.length} historical events (scanned ${filesScanned}, skipped ${filesSkipped} files, ~${(bytesSkipped / 1024 / 1024).toFixed(1)}MB saved)`);
+      console.log(`[activity] Stats: ${this._stats.messages} messages, ${this._stats.toolCalls} tool calls${hasCachedStats ? ' (from cache)' : ' (recomputed from complete files)'}`);
     } catch (err) {
       console.error('[activity] History load error:', (err as Error).message);
     } finally {
       this._isLoadingHistory = false;
     }
+  }
+
+  /**
+   * Compute stats from complete history by reading entire files.
+   * This ensures accurate statistics even for large files that exceed HISTORY_READ_BYTES.
+   */
+  private _computeStatsFromHistory(): void {
+    const todayStr = getLocalDateString();
+    const recentFiles = this._listSessionFiles(HISTORY_LOOKBACK_MS, { 
+      includeDeletedArchives: true,
+      includeResetArchives: true 
+    });
+    
+    let messages = 0;
+    let toolCalls = 0;
+    let filesProcessed = 0;
+    
+    for (const { filePath } of recentFiles) {
+      try {
+        // Read entire file (no size limit for stats)
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const lines = content.split('\n');
+        
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const entry = JSON.parse(line);
+            if (entry.type !== 'message') continue;
+            
+            const ts = entry.timestamp as string;
+            const msgDate = new Date(ts);
+            const msgDateStr = getLocalDateString(msgDate);
+            
+            // Only count today's messages
+            if (msgDateStr !== todayStr) continue;
+            
+            const msg = entry.message as { role: string; content: string | ContentPart[] };
+            if (msg.role === 'user') {
+              messages++;
+            } else if (msg.role === 'assistant') {
+              const { text, toolCalls: tc } = parseMessageContent(msg as Message);
+              if (text) messages++;
+              toolCalls += tc.length;
+            }
+          } catch {
+            // Skip malformed lines
+          }
+        }
+        filesProcessed++;
+      } catch {
+        // Skip unreadable files
+      }
+    }
+    
+    this._stats = { messages, toolCalls, errors: 0, lastActivityAt: null, date: todayStr };
+    console.log(`[activity] Computed stats from ${filesProcessed} complete files: ${messages} messages, ${toolCalls} tool calls`);
   }
 
   private _loadRecentFromFile(filePath: string, mtime: number, cachedState?: FileState): void {
@@ -291,6 +378,30 @@ export class ActivityTracker {
         }
       }
       
+      // Restore activity history if available (v2 cache)
+      if (parsed.activities && Array.isArray(parsed.activities)) {
+        this._recentActivity = parsed.activities;
+        console.log('[activity] Restored', this._recentActivity.length, 'cached activities');
+      }
+      
+      // Restore hourly buckets if available (v3 cache)
+      if (parsed.hourlyBuckets && typeof parsed.hourlyBuckets === 'object') {
+        const buckets = new Map<string, number[]>();
+        for (const [key, value] of Object.entries(parsed.hourlyBuckets)) {
+          if (Array.isArray(value)) {
+            buckets.set(key, value);
+          }
+        }
+        this._hourlyBuckets = buckets;
+        console.log('[activity] Restored', this._hourlyBuckets.size, 'hourly buckets');
+      }
+      
+      // Restore stats if available and from today (v3 cache)
+      if (parsed.stats && parsed.stats.date === getLocalDateString()) {
+        this._stats = parsed.stats;
+        console.log('[activity] Restored stats from cache:', this._stats.messages, 'messages,', this._stats.toolCalls, 'tool calls');
+      }
+      
       console.log('[activity] Loaded cache with', fileOffsets.size, 'file states');
       return { ...parsed, fileOffsets };
     } catch (err) {
@@ -319,6 +430,9 @@ export class ActivityTracker {
         version: CACHE_VERSION,
         lastScanTime: Date.now(),
         fileOffsets: this._fileOffsets,
+        activities: this._recentActivity,  // Save activity history
+        hourlyBuckets: this._hourlyBuckets,  // Save hourly buckets (v3)
+        stats: this._stats,  // Save stats (v3)
       };
       
       // Convert Map to plain object for JSON serialization
@@ -326,6 +440,9 @@ export class ActivityTracker {
         version: cache.version,
         lastScanTime: cache.lastScanTime,
         fileOffsets: Object.fromEntries(cache.fileOffsets),
+        activities: cache.activities,  // Include activities in saved cache
+        hourlyBuckets: Object.fromEntries(cache.hourlyBuckets || new Map()),  // Include hourly buckets
+        stats: cache.stats,  // Include stats in saved cache
       };
       
       // Ensure directory exists
@@ -402,6 +519,14 @@ export class ActivityTracker {
 
   // ── Entry Processing ─────────────────────────────────────
 
+  /** Check if stats need to be reset (new day). */
+  private _checkAndResetStats(): void {
+    const todayStr = getLocalDateString();
+    if (this._stats.date !== todayStr) {
+      this._stats = { messages: 0, toolCalls: 0, errors: 0, lastActivityAt: null, date: todayStr };
+    }
+  }
+
   private _processEntry(entry: Record<string, unknown>, filePath: string): void {
     if (entry.type !== 'message' || !entry.message) return;
 
@@ -409,12 +534,19 @@ export class ActivityTracker {
     const ts = (entry.timestamp as string) || new Date().toISOString();
     const sessionId = getSessionDisplayId(filePath);
 
+    // Check if message is from today (for stats recovery from history)
+    // Use local date comparison instead of UTC
+    const todayStr = getLocalDateString();
+    const msgDate = new Date(ts);
+    const msgDateStr = getLocalDateString(msgDate);
+    const isToday = msgDateStr === todayStr;
+
     this._recordTimestamp(ts);
 
     if (msg.role === 'assistant') {
-      this._processAssistantMessage(msg, ts, sessionId);
+      this._processAssistantMessage(msg, ts, sessionId, isToday);
     } else if (msg.role === 'user') {
-      this._processUserMessage(msg, ts, sessionId);
+      this._processUserMessage(msg, ts, sessionId, isToday);
     }
     // toolResult messages are intentionally skipped (too noisy).
 
@@ -424,11 +556,16 @@ export class ActivityTracker {
     }
   }
 
-  private _processAssistantMessage(msg: Record<string, unknown>, ts: string, sessionId: string): void {
+  private _processAssistantMessage(msg: Record<string, unknown>, ts: string, sessionId: string, isToday: boolean = true): void {
+    this._checkAndResetStats();
     const { text, toolCalls } = parseMessageContent(msg as { role: string; content: string });
 
     for (const tc of toolCalls) {
-      this._stats.toolCalls++;
+      // Only count tool calls during real-time monitoring (not during history load)
+      // _computeStatsFromHistory() already calculated stats from complete history
+      if (isToday && !this._isLoadingHistory) {
+        this._stats.toolCalls++;
+      }
       // 过滤掉 exec、read、edit、process、write 工具（不显示在 Live Activity 中）
       if (!['exec', 'read', 'edit', 'process', 'write'].includes(tc.name)) {
         this._addActivity({ type: 'tool_call', tool: tc.name, ts, session: sessionId, icon: '🔧' });
@@ -436,7 +573,11 @@ export class ActivityTracker {
     }
 
     if (text) {
-      this._stats.messages++;
+      // Only count messages during real-time monitoring (not during history load)
+      // _computeStatsFromHistory() already calculated stats from complete history
+      if (isToday && !this._isLoadingHistory) {
+        this._stats.messages++;
+      }
       const summary = extractAssistantSummary(text, 100, 5);
       this._addActivity({
         type: 'message',
@@ -448,14 +589,25 @@ export class ActivityTracker {
     }
   }
 
-  private _processUserMessage(msg: Record<string, unknown>, ts: string, sessionId: string): void {
+  private _processUserMessage(msg: Record<string, unknown>, ts: string, sessionId: string, isToday: boolean = true): void {
+    this._checkAndResetStats();
     const { text: rawText } = parseMessageContent(msg as { role: string; content: string });
-    const text = this._extractRealUserMessage(rawText);
+    // For LIVE ACTIVITY: show all messages (including cron/subagent)
+    const text = this._extractActivityText(rawText);
 
     if (!text) return;
 
-    this._stats.messages++;
-    this._addActivity({ type: 'user_message', text, ts, session: sessionId, icon: '👤' });
+    // Determine if this is a system message (cron or subagent)
+    const isCron = text.includes('[cron:');
+    const isSubagent = text.includes('[Subagent Context]');
+    const icon = isCron ? '⏰' : isSubagent ? '🤖' : '👤';
+
+    // Only count messages during real-time monitoring (not during history load)
+    // _computeStatsFromHistory() already calculated stats from complete history
+    if (isToday && !this._isLoadingHistory) {
+      this._stats.messages++;
+    }
+    this._addActivity({ type: 'user_message', text, ts, session: sessionId, icon });
   }
 
   private _recordTimestamp(ts: string): void {
@@ -623,6 +775,44 @@ export class ActivityTracker {
    * Handles special formats like [message_id=om_xxx] patterns.
    * Filters out system messages (subagent, cron, etc.).
    */
+  /**
+   * Extract text for LIVE ACTIVITY display.
+   * Shows ALL messages including cron and subagent tasks.
+   */
+  private _extractActivityText(raw: string): string {
+    // First use the standard extractor
+    let text = extractUserText(raw, 200);
+    
+    // If we got nothing, return empty
+    if (!text) return '';
+    
+    // Handle Feishu messages: extract the actual content
+    const feishuMatch = text.match(/\[message_id=[^\]]+\]\s*\n+([\s\S]+)/);
+    if (feishuMatch && feishuMatch[1]) {
+      return feishuMatch[1].trim();
+    }
+    
+    // Filter only technical noise (but keep cron/subagent messages)
+    const noisePatterns = [
+      'A new session was started',
+      'Read HEARTBEAT',
+      'OpenClaw runtime context',
+      'Internal task completion event',
+      'Pre-compaction memory flush',
+      'Exec completed',
+    ];
+    
+    for (const pattern of noisePatterns) {
+      if (text.includes(pattern)) return '';
+    }
+    
+    return text;
+  }
+
+  /**
+   * Extract the real user message for Task Log display.
+   * Filters out system messages (cron, subagent, etc.).
+   */
   private _extractRealUserMessage(raw: string): string {
     // First use the standard extractor
     let text = extractUserText(raw, 200);
@@ -690,8 +880,9 @@ export class ActivityTracker {
 
   // ── Utilities ────────────────────────────────────────────
 
-  private _listSessionFiles(lookbackMs: number, options?: { includeResetArchives?: boolean }): SessionFileInfo[] {
+  private _listSessionFiles(lookbackMs: number, options?: { includeResetArchives?: boolean; includeDeletedArchives?: boolean }): SessionFileInfo[] {
     const includeResetArchives = options?.includeResetArchives ?? false;
+    const includeDeletedArchives = options?.includeDeletedArchives ?? false;
     const cutoff = Date.now() - lookbackMs;
     const allFiles: SessionFileInfo[] = [];
 
@@ -701,6 +892,7 @@ export class ActivityTracker {
         const files = fs.readdirSync(sessionsDir).filter((f) => {
           if (f.endsWith('.jsonl')) return true;
           if (includeResetArchives && /\.jsonl\.reset\./.test(f)) return true;
+          if (includeDeletedArchives && /\.jsonl\.deleted\./.test(f)) return true;
           return false;
         });
 

@@ -165,10 +165,6 @@ async function scanTranscriptFile(
     crlfDelay: Infinity,
   });
 
-  // Track the last assistant usage in current prompt
-  let lastAssistantUsage: { input: number; output: number; cacheRead: number; cacheWrite: number } | null = null;
-  let lastAssistantTimestamp: Date | null = null;
-
   for await (const line of rl) {
     if (!line.trim()) continue;
     try {
@@ -179,72 +175,35 @@ async function scanTranscriptFile(
       const ts = parsed.timestamp.getTime();
       if (ts < startMs || ts > endMs) continue;
 
-      // When we see a user message, it's a new prompt
-      // Commit the last assistant usage from previous prompt
-      if (parsed.role === 'user') {
-        if (lastAssistantUsage && lastAssistantTimestamp) {
-          const totalTokens = lastAssistantUsage.input + lastAssistantUsage.output + 
-                              lastAssistantUsage.cacheRead + lastAssistantUsage.cacheWrite;
-          
-          // 累加这个 prompt 的最后一条 usage
-          totals.totalTokens! += totalTokens;
-          totals.input! += lastAssistantUsage.input;
-          totals.output! += lastAssistantUsage.output;
-          totals.cacheRead! += lastAssistantUsage.cacheRead;
-          totals.cacheWrite! += lastAssistantUsage.cacheWrite;
+      // Accumulate all assistant usage (not just the last one in each prompt)
+      if (parsed.role === 'assistant' && parsed.usage) {
+        const totalTokens = parsed.usage.input + parsed.usage.output + 
+                            parsed.usage.cacheRead + parsed.usage.cacheWrite;
+        
+        // 直接累加所有 assistant usage
+        totals.totalTokens! += totalTokens;
+        totals.input! += parsed.usage.input;
+        totals.output! += parsed.usage.output;
+        totals.cacheRead! += parsed.usage.cacheRead;
+        totals.cacheWrite! += parsed.usage.cacheWrite;
 
-          const dayKey = formatDayKey(lastAssistantTimestamp);
-          const day = dailyMap.get(dayKey) ?? {
-            date: dayKey,
-            totalTokens: 0,
-            input: 0,
-            output: 0,
-            cacheRead: 0,
-          };
-          day.totalTokens! += totalTokens;
-          day.input! += lastAssistantUsage.input;
-          day.output! += lastAssistantUsage.output;
-          day.cacheRead! += lastAssistantUsage.cacheRead;
-          dailyMap.set(dayKey, day);
-        }
-        // Reset for new prompt
-        lastAssistantUsage = null;
-        lastAssistantTimestamp = null;
-      }
-      // For assistant messages, track the usage (will be overwritten by later messages in same prompt)
-      else if (parsed.role === 'assistant' && parsed.usage) {
-        lastAssistantUsage = parsed.usage;
-        lastAssistantTimestamp = parsed.timestamp;
+        const dayKey = formatDayKey(parsed.timestamp);
+        const day = dailyMap.get(dayKey) ?? {
+          date: dayKey,
+          totalTokens: 0,
+          input: 0,
+          output: 0,
+          cacheRead: 0,
+        };
+        day.totalTokens! += totalTokens;
+        day.input! += parsed.usage.input;
+        day.output! += parsed.usage.output;
+        day.cacheRead! += parsed.usage.cacheRead;
+        dailyMap.set(dayKey, day);
       }
     } catch {
       // Skip malformed entries
     }
-  }
-
-  // Don't forget the last prompt in the file
-  if (lastAssistantUsage && lastAssistantTimestamp) {
-    const totalTokens = lastAssistantUsage.input + lastAssistantUsage.output + 
-                        lastAssistantUsage.cacheRead + lastAssistantUsage.cacheWrite;
-    
-    totals.totalTokens! += totalTokens;
-    totals.input! += lastAssistantUsage.input;
-    totals.output! += lastAssistantUsage.output;
-    totals.cacheRead! += lastAssistantUsage.cacheRead;
-    totals.cacheWrite! += lastAssistantUsage.cacheWrite;
-
-    const dayKey = formatDayKey(lastAssistantTimestamp);
-    const day = dailyMap.get(dayKey) ?? {
-      date: dayKey,
-      totalTokens: 0,
-      input: 0,
-      output: 0,
-      cacheRead: 0,
-    };
-    day.totalTokens! += totalTokens;
-    day.input! += lastAssistantUsage.input;
-    day.output! += lastAssistantUsage.output;
-    day.cacheRead! += lastAssistantUsage.cacheRead;
-    dailyMap.set(dayKey, day);
   }
 
   rl.close();

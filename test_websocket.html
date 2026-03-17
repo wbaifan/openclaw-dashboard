@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+</head>
+<body>
+    <h1>WebSocket实时推送测试</h1>
+    <div id="status">状态: 未连接</div>
+    <div id="messages"></div>
+    <script>
+        const ws = new WebSocket('ws://localhost:3210/ws');
+        const status = document.getElementById('status');
+        const messages = document.getElementById('messages');
+        
+        ws.onopen = () => {
+            status.textContent = '状态: 已连接';
+            status.style.color = 'green';
+        };
+        
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            const time = new Date().toLocaleTimeString();
+            const msg = document.createElement('div');
+            msg.textContent = `[${time}] 收到推送: type=${data.type}, activities=${data.data?.activity?.recent?.length || 0}`;
+            messages.insertBefore(msg, messages.firstChild);
+        };
+        
+        ws.onclose = () => {
+            status.textContent = '状态: 已断开';
+            status.style.color = 'red';
+        };
+        
+        ws.onerror = (err) => {
+            status.textContent = '状态: 错误';
+            status.style.color = 'red';
+        };
+    </script>
+</body>
+</html>

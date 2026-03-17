@@ -22,6 +22,10 @@ export function timeAgo(ms: number | null | undefined): string {
   return h < 24 ? h + 'h' : Math.floor(h / 24) + 'd';
 }
 
+/**
+ * 格式化时间为用户本地时区
+ * 自动根据用户浏览器时区显示
+ */
 export function fmtTime(iso: string | null | undefined): string {
   if (!iso) return '';
   return new Date(iso).toLocaleTimeString('zh-CN', {

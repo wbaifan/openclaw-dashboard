@@ -28,12 +28,12 @@ export interface ToolCall {
   [key: string]: unknown;
 }
 
-interface Message {
+export interface Message {
   role: string;
   content: string | ContentPart[];
 }
 
-interface ContentPart {
+export interface ContentPart {
   type: string;
   text?: string;
   name?: string;

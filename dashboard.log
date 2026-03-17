@@ -1,0 +1,60 @@
+
+> openclaw-dashboard@0.1.0 start
+> node dist/server.js
+
+[dashboard] 🦐 http://0.0.0.0:3210
+[activity] Tracking 3 agent(s): ai_tui, family, main
+[activity] Restored 100 cached activities
+[activity] Loaded cache with 114 file states
+[activity] Removed 25 stale cache entries
+[activity] Saved cache with 89 file states
+[activity] Loaded 100 historical events (scanned 2, skipped 87 files, ~19.9MB saved)
+[gw] Connected, awaiting challenge...
+[gw] ✅ Ready
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 105 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+[activity] Saved cache with 106 file states
+Terminated
