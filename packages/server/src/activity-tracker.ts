@@ -66,7 +66,9 @@ export class ActivityTracker {
   private _fileOffsets = new Map<string, FileState>();
   private _recentActivity: ActivityItem[] = [];
   private _stats: ActivityStats = { messages: 0, toolCalls: 0, errors: 0, lastActivityAt: null };
-  private _hourlyActivity = new Array<number>(24).fill(0);
+  private _hourlyBuckets: Map<string, number[]> = new Map(); // hourKey -> timestamps
+  private _lastSnapshotTime = 0;
+  private _cachedHourlyActivity: number[] | null = null;
   private _agentDirs: { agentName: string; sessionsDir: string }[] = [];
   private _onActivity?: () => void;
   private _isLoadingHistory = false; // Flag to prevent callbacks during history load
@@ -122,12 +124,40 @@ export class ActivityTracker {
 
   /** Return a snapshot of current activity data for the dashboard. */
   getSnapshot(): ActivitySnapshot {
+    const hourlyActivity = this._computeHourlyActivity();
     return {
       recent: this._recentActivity.slice(0, 30),
       stats: { ...this._stats },
-      hourlyActivity: [...this._hourlyActivity],
+      hourlyActivity,
       tasks: this._extractTasks(),
     };
+  }
+
+  /** Compute hourly activity for the last 24 hours (with 1-minute cache). */
+  private _computeHourlyActivity(): number[] {
+    const now = Date.now();
+    
+    // Use cache if computed within the last minute
+    if (this._cachedHourlyActivity && now - this._lastSnapshotTime < 60000) {
+      return this._cachedHourlyActivity;
+    }
+    
+    const lookbackMs = 24 * 3600 * 1000;
+    const hourlyActivity = new Array<number>(24).fill(0);
+    
+    this._hourlyBuckets.forEach((timestamps, hourKey) => {
+      // Count timestamps within the last 24 hours
+      const count = timestamps.filter(t => now - t < lookbackMs).length;
+      const hour = parseInt(hourKey.split('T')[1]);
+      if (hour >= 0 && hour < 24) {
+        hourlyActivity[hour] += count;
+      }
+    });
+    
+    this._cachedHourlyActivity = hourlyActivity;
+    this._lastSnapshotTime = now;
+    
+    return hourlyActivity;
   }
 
   // ── History Loading ──────────────────────────────────────
@@ -266,16 +296,46 @@ export class ActivityTracker {
 
   private _recordTimestamp(ts: string): void {
     const date = new Date(ts);
+    const timestamp = date.getTime();
     const now = Date.now();
-    const lookbackMs = 24 * 3600 * 1000; // 24 hours
-
-    // Only count messages within the last 24 hours
-    if (now - date.getTime() > lookbackMs) return;
-
-    // Use local timezone hour for correct display
-    const localHour = date.getHours();  // getHours() returns local timezone hour
-    this._hourlyActivity[localHour] = (this._hourlyActivity[localHour] || 0) + 1;
+    const lookbackMs = 24 * 3600 * 1000;
+    
+    // Only record messages within the last 24 hours
+    if (now - timestamp > lookbackMs) return;
+    
+    // Create hour key: "YYYY-M-DTH" (e.g., "2026-3-17T14")
+    const hourKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}T${date.getHours()}`;
+    
+    // Add timestamp to bucket
+    const bucket = this._hourlyBuckets.get(hourKey) || [];
+    bucket.push(timestamp);
+    this._hourlyBuckets.set(hourKey, bucket);
+    
+    // Invalidate cache
+    this._cachedHourlyActivity = null;
+    
     this._stats.lastActivityAt = ts;
+    
+    // Cleanup old data periodically (every 100 calls)
+    if (bucket.length % 100 === 0) {
+      this._cleanupOldData();
+    }
+  }
+  
+  /** Remove timestamps older than 24 hours. */
+  private _cleanupOldData(): void {
+    const now = Date.now();
+    const lookbackMs = 24 * 3600 * 1000;
+    
+    this._hourlyBuckets.forEach((timestamps, hourKey) => {
+      // Filter out timestamps older than 24 hours
+      const valid = timestamps.filter(t => now - t < lookbackMs);
+      if (valid.length === 0) {
+        this._hourlyBuckets.delete(hourKey);
+      } else if (valid.length !== timestamps.length) {
+        this._hourlyBuckets.set(hourKey, valid);
+      }
+    });
   }
 
   private _addActivity(activity: ActivityItem): void {
