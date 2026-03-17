@@ -10,7 +10,7 @@ import {
   parseJsonLines,
 } from './session-parser.js';
 
-const MAX_RECENT_ACTIVITY = 2000; // Increased to capture all messages from main session
+const MAX_RECENT_ACTIVITY = 100; // Number of recent activities to keep in memory
 const HISTORY_LOOKBACK_MS = 24 * 3600 * 1000;
 const TASK_LOOKBACK_MS = 48 * 3600 * 1000;
 const HISTORY_READ_BYTES = 5 * 1024 * 1024; // Increased to 5MB to handle large session files
@@ -343,7 +343,9 @@ export class ActivityTracker {
 
   private _addActivity(activity: ActivityItem): void {
     this._recentActivity.unshift(activity);
-    if (this._recentActivity.length > MAX_RECENT_ACTIVITY) {
+    // Only truncate during real-time monitoring (not during history load)
+    // History load will sort and truncate after all messages are loaded
+    if (!this._isLoadingHistory && this._recentActivity.length > MAX_RECENT_ACTIVITY) {
       this._recentActivity.pop();
     }
   }
