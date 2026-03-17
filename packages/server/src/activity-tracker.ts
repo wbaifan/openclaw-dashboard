@@ -286,7 +286,8 @@ export class ActivityTracker {
       const recentFiles = this._listSessionFiles(TASK_LOOKBACK_MS, { includeResetArchives: true });
       const tasks: TaskItem[] = [];
 
-      for (const { filePath } of recentFiles.slice(0, 8)) {
+      // Load up to 50 files to include more user conversations
+      for (const { filePath } of recentFiles.slice(0, 50)) {
         const task = this._extractTaskFromFile(filePath);
         if (task) tasks.push(task);
       }
@@ -391,6 +392,15 @@ export class ActivityTracker {
     if (!text) return '';
     
     // Filter out known system message types
+    // Note: Feishu messages start with "System: [2026-03-17..." but contain user content
+    // We need to extract the actual user message from Feishu format first
+    const feishuMatch = text.match(/\[message_id=[^\]]+\]\s*\n+([\s\S]+)/);
+    if (feishuMatch && feishuMatch[1]) {
+      // This is a Feishu message, extract the actual content
+      return feishuMatch[1].trim();
+    }
+    
+    // Now filter out system messages (after Feishu extraction)
     const systemPatterns = [
       'A new session was started',
       '[Subagent Context]',
@@ -400,20 +410,10 @@ export class ActivityTracker {
       'Internal task completion event',
       'Pre-compaction memory flush',
       'Exec completed',
-      'System: [2026',
     ];
     
     for (const pattern of systemPatterns) {
       if (text.includes(pattern)) return '';
-    }
-    
-    // Extract text from Feishu channel format if present
-    // Pattern: [message_id=om_xxx]\n\nActual message here
-    // Use [\s\S]+ to match multi-line messages (including newlines)
-    const feishuMatch = text.match(/\[message_id=[^\]]+\]\s*\n+([\s\S]+)/);
-    if (feishuMatch && feishuMatch[1]) {
-      // Don't slice here - let _extractTaskSummary handle truncation
-      return feishuMatch[1].trim();
     }
     
     return text;
