@@ -265,8 +265,14 @@ export class ActivityTracker {
   }
 
   private _recordTimestamp(ts: string): void {
-    // Use local timezone hour for correct display
     const date = new Date(ts);
+    const now = Date.now();
+    const lookbackMs = 24 * 3600 * 1000; // 24 hours
+
+    // Only count messages within the last 24 hours
+    if (now - date.getTime() > lookbackMs) return;
+
+    // Use local timezone hour for correct display
     const localHour = date.getHours();  // getHours() returns local timezone hour
     this._hourlyActivity[localHour] = (this._hourlyActivity[localHour] || 0) + 1;
     this._stats.lastActivityAt = ts;
