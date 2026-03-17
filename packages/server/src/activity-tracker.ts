@@ -567,7 +567,8 @@ export class ActivityTracker {
         this._stats.toolCalls++;
       }
       // 过滤掉 exec、read、edit、process、write 工具（不显示在 Live Activity 中）
-      if (!['exec', 'read', 'edit', 'process', 'write'].includes(tc.name)) {
+      // 显示所有 tool_call（不再过滤）
+      if (true) {
         this._addActivity({ type: 'tool_call', tool: tc.name, ts, session: sessionId, icon: '🔧' });
       }
     }
@@ -655,7 +656,17 @@ export class ActivityTracker {
   }
 
   private _addActivity(activity: ActivityItem): void {
+    // 如果是 tool_call，先删除同类型的旧消息（每种工具只保留最新一条）
+    if (activity.type === 'tool_call') {
+      this._recentActivity = this._recentActivity.filter(a => 
+        !(a.type === 'tool_call' && a.tool === activity.tool)
+      );
+    }
+    
+    // 添加新消息到开头
     this._recentActivity.unshift(activity);
+    
+    // 超过限制时删除最后一条
     // Only truncate during real-time monitoring (not during history load)
     // History load will sort and truncate after all messages are loaded
     if (!this._isLoadingHistory && this._recentActivity.length > MAX_RECENT_ACTIVITY) {
