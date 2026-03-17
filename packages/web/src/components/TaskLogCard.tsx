@@ -81,7 +81,7 @@ function TaskRow({ task: t }: { task: TaskItem }) {
   return (
     <div className={`task-item ${statusClass}`}>
       <div className="task-header">
-        <span className="task-time">{fmtTime(t.startedAt)}</span>
+        <span className="task-time">{fmtTime(t.lastActivityAt)}</span>
         {t.toolCount > 0 && <span className="task-tools">🔧 {t.toolCount}</span>}
         <span className="task-status">{statusLabel}</span>
       </div>
