@@ -142,6 +142,12 @@ export const Footer = memo(function Footer({ timestamp, wsStatus }: FooterProps)
     setShowEmojiPicker(false);
   };
 
+  // 点击 emoji 图标（非编辑模式）
+  const handleEmojiClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止冒泡，不触发名字编辑
+    setShowEmojiPicker(!showEmojiPicker);
+  };
+
   return (
     <footer className="footer">
       <div className="footer-name-container">
@@ -183,12 +189,36 @@ export const Footer = memo(function Footer({ timestamp, wsStatus }: FooterProps)
             )}
           </span>
         ) : (
-          <span 
-            className="footer-name" 
-            onClick={handleStartEdit}
-            title="点击修改名字"
-          >
-            {emoji} {name} Dashboard
+          <span className="footer-name-wrapper">
+            <span 
+              className="footer-emoji-display"
+              onClick={handleEmojiClick}
+              title="点击更换图标"
+            >
+              {emoji}
+            </span>
+            {showEmojiPicker && (
+              <div ref={emojiPickerRef} className="emoji-picker">
+                <div className="emoji-picker-grid">
+                  {EMOJI_LIST.map((e, i) => (
+                    <button
+                      key={i}
+                      className="emoji-picker-item"
+                      onClick={() => handleEmojiSelect(e)}
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <span 
+              className="footer-name" 
+              onClick={handleStartEdit}
+              title="点击修改名字"
+            >
+              {name} Dashboard
+            </span>
           </span>
         )}
       </div>

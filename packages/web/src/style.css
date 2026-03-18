@@ -902,6 +902,23 @@ body {
   gap: 4px;
 }
 
+.footer-name-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+}
+
+.footer-emoji-display {
+  cursor: pointer;
+  transition: transform 0.2s;
+  font-size: 1.1em;
+}
+
+.footer-emoji-display:hover {
+  transform: scale(1.2);
+}
+
 .footer-name {
   cursor: pointer;
   transition: opacity 0.2s;
