@@ -153,8 +153,14 @@ export class ActivityTracker {
   /** Return a snapshot of current activity data for the dashboard. */
   getSnapshot(): ActivitySnapshot {
     const hourlyActivity = this._computeHourlyActivity();
+    
+    // 确保返回前按时间戳排序（最新的在前）
+    const sortedRecent = [...this._recentActivity]
+      .sort((a, b) => new Date(b.ts).getTime() - new Date(a.ts).getTime())
+      .slice(0, 30);
+    
     return {
-      recent: this._recentActivity.slice(0, 30),
+      recent: sortedRecent,
       stats: { ...this._stats },
       hourlyActivity,
       tasks: this._extractTasks(),
@@ -657,7 +663,8 @@ export class ActivityTracker {
 
   private _addActivity(activity: ActivityItem): void {
     // 如果是 tool_call，先删除同类型的旧消息（每种工具只保留最新一条）
-    if (activity.type === 'tool_call' && activity.tool !== 'sessions_spawn') {
+    // 包括 sessions_spawn 在内的所有工具都需要去重
+    if (activity.type === 'tool_call') {
       this._recentActivity = this._recentActivity.filter(a => 
         !(a.type === 'tool_call' && a.tool === activity.tool)
       );

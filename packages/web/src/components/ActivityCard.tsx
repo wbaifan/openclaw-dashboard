@@ -19,7 +19,7 @@ export const ActivityCard = memo(function ActivityCard({ recent }: ActivityCardP
           {recent.length === 0 ? (
             <div className="empty">Waiting for activity...</div>
           ) : (
-            recent.map((a) => <ActivityRow key={a.ts + a.type + a.session} activity={a} />)
+            recent.map((a, i) => <ActivityRow key={`${i}-${a.ts}-${a.type}-${a.session}`} activity={a} />)
           )}
         </div>
       </div>
