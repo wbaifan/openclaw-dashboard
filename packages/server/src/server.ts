@@ -3,7 +3,6 @@ import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
-import fs from 'fs';
 import { config } from './config.js';
 import { GatewayClient } from './gateway-client.js';
 import { ActivityTracker } from './activity-tracker.js';
@@ -13,8 +12,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const UPDATE_INTERVAL_MS = 10000;
 const STARTUP_DELAY_MS = 3000;
 const DEBOUNCE_MS = 100; // Debounce activity updates to avoid spamming
-const HOME = process.env.HOME || process.env.USERPROFILE || '/root';
-const OPENCLAW_HOME = path.join(HOME, '.openclaw');
 
 // ── Express & WebSocket Setup ──────────────────────────────
 
@@ -34,32 +31,6 @@ const tracker = new ActivityTracker();
 app.get('/api/metrics', async (_req, res) => {
   try {
     res.json(await collectMetrics(gw, tracker));
-  } catch (err) {
-    res.status(500).json({ error: (err as Error).message });
-  }
-});
-
-// 获取 agent 名字（从 IDENTITY.md 解析）
-app.get('/api/agent-name', async (_req, res) => {
-  try {
-    const identityPath = path.join(OPENCLAW_HOME, 'workspace', 'IDENTITY.md');
-    const content = fs.readFileSync(identityPath, 'utf-8');
-    
-    // 解析 Name 字段
-    const nameMatch = content.match(/-?\s*\*\*Name:\*\*\s*(.+)/m);
-    let name = nameMatch ? nameMatch[1].trim() : 'OpenClaw';
-    
-    // 如果名字包含括号，只取括号前的部分（如 "小云子 (Xiaoyunzi)" → "小云子"）
-    const parenIndex = name.indexOf('(');
-    if (parenIndex > 0) {
-      name = name.substring(0, parenIndex).trim();
-    }
-    
-    // 解析 Emoji 字段
-    const emojiMatch = content.match(/-?\s*\*\*Emoji:\*\*\s*(.+)/m);
-    const emoji = emojiMatch ? emojiMatch[1].trim() : '🦐';
-    
-    res.json({ name, emoji });
   } catch (err) {
     res.status(500).json({ error: (err as Error).message });
   }
