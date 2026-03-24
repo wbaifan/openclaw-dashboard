@@ -186,7 +186,20 @@ The Vite dev server runs on `http://localhost:5173` with hot module replacement.
 
 ## Changelog
 
-### Latest Improvements
+### 2026-03-24
+
+#### Bug Fixes
+- **Token Usage Cache**: Fixed historical daily data changing over time - cache now validates time range before reuse
+- **30-Day Coverage**: Empty days now filled with zero values for complete 30-day chart
+- **Timezone Consistency**: Unified local timezone handling across all date calculations
+- **Cron Tasks**: Added `~/.openclaw/cron/runs/` to token usage statistics
+
+#### Performance Optimizations
+- **Async File Reading**: Changed sync `fs.readFileSync` to async `fs.promises.readFile` with parallel processing
+- **Memory Optimization**: Hourly activity buckets now store counts instead of timestamp arrays (~99% memory reduction)
+- **React Rendering**: Added `useMemo` for derived data in App.tsx to prevent unnecessary re-renders
+
+### Previous Improvements
 - **Activity Timeline**: Shows last 24 hours (not just "today")
 - **Token Statistics**: Accurate accumulation across all API calls
 - **Timezone Support**: All times use local timezone

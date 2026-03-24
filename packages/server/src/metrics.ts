@@ -1,7 +1,7 @@
 import { GatewayClient } from './gateway-client.js';
 import { ActivityTracker } from './activity-tracker.js';
 import type { ActivitySnapshot } from './activity-tracker.js';
-import { getAgentSessionsDirs } from './config.js';
+import { getAgentSessionsDirs, getCronRunsDir } from './config.js';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as readline from 'readline';
@@ -46,6 +46,7 @@ interface UsageCostData {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const LOCAL_TZ = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 // ── Simple Cache with File Modification Time Tracking ────────────────────────────────
 
@@ -53,6 +54,8 @@ interface UsageCache {
   daily: Map<string, DailyUsage>;
   totals: UsageTotals;
   updatedAt: number;
+  startMs: number;
+  endMs: number;
 }
 
 // Global cache instance
@@ -71,6 +74,8 @@ const usageCache: UsageCache = {
     cacheWriteCost: 0,
   },
   updatedAt: 0,
+  startMs: 0,
+  endMs: 0,
 };
 
 /** Get the latest modification time of all transcript files */
@@ -81,7 +86,6 @@ async function getLatestTranscriptMtime(): Promise<number> {
     try {
       const files = await fs.promises.readdir(sessionsDir);
       for (const file of files) {
-        // Include .jsonl, .jsonl.deleted.*, .jsonl.reset.* files
         if (!file.endsWith('.jsonl') && !file.includes('.jsonl.deleted.') && !file.includes('.jsonl.reset.')) continue;
         const stat = await fs.promises.stat(path.join(sessionsDir, file));
         if (stat.mtimeMs > latestMtime) {
@@ -92,14 +96,60 @@ async function getLatestTranscriptMtime(): Promise<number> {
       // Directory not accessible, skip
     }
   }
+  
+  const cronRunsDir = getCronRunsDir();
+  try {
+    const files = await fs.promises.readdir(cronRunsDir);
+    for (const file of files) {
+      if (!file.endsWith('.jsonl')) continue;
+      const stat = await fs.promises.stat(path.join(cronRunsDir, file));
+      if (stat.mtimeMs > latestMtime) {
+        latestMtime = stat.mtimeMs;
+      }
+    }
+  } catch {
+    // Directory not accessible, skip
+  }
+  
   return latestMtime;
 }
 
-/** Format date to YYYY-MM-DD string using Beijing timezone (Asia/Shanghai) */
 function formatDayKey(date: Date): string {
   return date.toLocaleDateString('en-CA', { 
-    timeZone: 'Asia/Shanghai'
+    timeZone: LOCAL_TZ
   });
+}
+
+function parseDayKey(dayKey: string): Date {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getLocalMidnightMs(date: Date): number {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+}
+
+function fillMissingDays(daily: DailyUsage[], startMs: number, days: number): DailyUsage[] {
+  if (daily.length === 0) return daily;
+  
+  const result: DailyUsage[] = [];
+  const dailyMap = new Map(daily.map(d => [d.date, d]));
+  
+  const startDate = new Date(startMs);
+  for (let i = 0; i < days; i++) {
+    const date = new Date(startDate.getTime() + i * DAY_MS);
+    const dayKey = formatDayKey(date);
+    const existing = dailyMap.get(dayKey);
+    result.push(existing ?? {
+      date: dayKey,
+      totalTokens: 0,
+      input: 0,
+      output: 0,
+      cacheRead: 0,
+    });
+  }
+  
+  return result;
 }
 
 /** Parse transcript entry to extract usage, timestamp, and role */
@@ -210,10 +260,64 @@ async function scanTranscriptFile(
   fileStream.destroy();
 }
 
-/** Load usage cost data with smart caching based on file modification time */
+async function scanCronRunsFile(
+  filePath: string,
+  startMs: number,
+  endMs: number,
+  dailyMap: Map<string, DailyUsage>,
+  totals: UsageTotals
+): Promise<void> {
+  const fileStream = fs.createReadStream(filePath, { encoding: 'utf-8' });
+  const rl = readline.createInterface({
+    input: fileStream,
+    crlfDelay: Infinity,
+  });
+
+  for await (const line of rl) {
+    if (!line.trim()) continue;
+    try {
+      const entry = JSON.parse(line) as Record<string, unknown>;
+      
+      if (!entry.usage) continue;
+      
+      const ts = entry.ts as number | undefined;
+      if (!ts || ts < startMs || ts > endMs) continue;
+
+      const usage = entry.usage as Record<string, unknown>;
+      const input = (usage.input_tokens as number) ?? 0;
+      const output = (usage.output_tokens as number) ?? 0;
+      
+      if (input === 0 && output === 0) continue;
+
+      totals.totalTokens! += input + output;
+      totals.input! += input;
+      totals.output! += output;
+
+      const date = new Date(ts);
+      const dayKey = formatDayKey(date);
+      const day = dailyMap.get(dayKey) ?? {
+        date: dayKey,
+        totalTokens: 0,
+        input: 0,
+        output: 0,
+        cacheRead: 0,
+      };
+      day.totalTokens! += input + output;
+      day.input! += input;
+      day.output! += output;
+      dailyMap.set(dayKey, day);
+    } catch {
+      // Skip malformed entries
+    }
+  }
+
+  rl.close();
+  fileStream.destroy();
+}
+
 async function loadUsageFromAllAgents(days: number = 30): Promise<UsageCostData> {
   const now = new Date();
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const todayStart = getLocalMidnightMs(now);
   const startMs = todayStart - (days - 1) * DAY_MS;
   const endMs = now.getTime();
   const todayKey = formatDayKey(now);
@@ -221,13 +325,13 @@ async function loadUsageFromAllAgents(days: number = 30): Promise<UsageCostData>
   // Check the latest file modification time
   const latestMtime = await getLatestTranscriptMtime();
   
-  // Cache is valid if: data exists AND cache was updated after the latest file modification
-  if (usageCache.daily.size > 0 && usageCache.updatedAt > latestMtime) {
+  if (usageCache.daily.size > 0 && 
+      usageCache.updatedAt > latestMtime &&
+      usageCache.startMs === startMs) {
     const daily = Array.from(usageCache.daily.values()).sort((a, b) => a.date.localeCompare(b.date));
     return {
       updatedAt: usageCache.updatedAt,
-      days,
-      daily,
+      daily: fillMissingDays(daily, startMs, days),
       totals: usageCache.totals,
     };
   }
@@ -238,7 +342,6 @@ async function loadUsageFromAllAgents(days: number = 30): Promise<UsageCostData>
   
   for (const { sessionsDir } of agentDirs) {
     try {
-      // Include .jsonl, .jsonl.deleted.*, .jsonl.reset.* files
       const files = fs.readdirSync(sessionsDir).filter(f => {
         return f.endsWith('.jsonl') || 
                f.includes('.jsonl.deleted.') || 
@@ -250,6 +353,17 @@ async function loadUsageFromAllAgents(days: number = 30): Promise<UsageCostData>
     } catch {
       // Directory not accessible, skip
     }
+  }
+
+  const cronRunsDir = getCronRunsDir();
+  const cronFiles: string[] = [];
+  try {
+    const files = fs.readdirSync(cronRunsDir).filter(f => f.endsWith('.jsonl'));
+    for (const file of files) {
+      cronFiles.push(path.join(cronRunsDir, file));
+    }
+  } catch {
+    // Directory not accessible, skip
   }
 
   // Full rescan
@@ -267,10 +381,14 @@ async function loadUsageFromAllAgents(days: number = 30): Promise<UsageCostData>
     cacheWriteCost: 0,
   };
 
-  // Scan all files in parallel
-  const scanPromises = allFiles.map(filePath => 
-    scanTranscriptFile(filePath, startMs, endMs, dailyMap, totals, false)
-  );
+  const scanPromises = [
+    ...allFiles.map(filePath => 
+      scanTranscriptFile(filePath, startMs, endMs, dailyMap, totals, false)
+    ),
+    ...cronFiles.map(filePath => 
+      scanCronRunsFile(filePath, startMs, endMs, dailyMap, totals)
+    ),
+  ];
 
   await Promise.all(scanPromises);
 
@@ -278,14 +396,14 @@ async function loadUsageFromAllAgents(days: number = 30): Promise<UsageCostData>
   usageCache.daily = dailyMap;
   usageCache.totals = totals;
   usageCache.updatedAt = Date.now();
+  usageCache.startMs = startMs;
+  usageCache.endMs = endMs;
 
-  // Sort daily by date
   const daily = Array.from(dailyMap.values()).sort((a, b) => a.date.localeCompare(b.date));
 
   return {
     updatedAt: usageCache.updatedAt,
-    days,
-    daily,
+    daily: fillMissingDays(daily, startMs, days),
     totals,
   };
 }

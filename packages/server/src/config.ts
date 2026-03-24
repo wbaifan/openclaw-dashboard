@@ -5,7 +5,11 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const HOME = process.env.HOME || process.env.USERPROFILE || '/root';
 const OPENCLAW_HOME = path.join(HOME, '.openclaw');
-const AGENT_NAME = process.env.AGENT_NAME || 'main';  // Keep for backward compatibility
+const AGENT_NAME = process.env.AGENT_NAME || 'main';
+
+export function getCronRunsDir(): string {
+  return path.join(OPENCLAW_HOME, 'cron', 'runs');
+}  // Keep for backward compatibility
 
 /**
  * Scan all agent directories and return their sessions paths.

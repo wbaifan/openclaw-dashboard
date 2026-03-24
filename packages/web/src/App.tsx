@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useMetrics } from './hooks/useMetrics';
 import { Header } from './components/Header';
 import { TokenUsageCard } from './components/TokenUsageCard';
@@ -11,8 +12,13 @@ import { Footer } from './components/Footer';
 export function App() {
   const { data, wsStatus } = useMetrics();
 
-  const activity = data?.activity;
-  const sessions = data?.status?.sessions?.recent ?? [];
+  const activity = useMemo(() => data?.activity, [data?.activity]);
+  const sessions = useMemo(() => data?.status?.sessions?.recent ?? [], [data?.status?.sessions?.recent]);
+  const usageCost = useMemo(() => data?.usageCost, [data?.usageCost]);
+  const totals = useMemo(() => data?.usageCost?.totals, [data?.usageCost?.totals]);
+  const hourlyActivity = useMemo(() => activity?.hourlyActivity, [activity?.hourlyActivity]);
+  const tasks = useMemo(() => activity?.tasks ?? [], [activity?.tasks]);
+  const recent = useMemo(() => activity?.recent ?? [], [activity?.recent]);
 
   return (
     <>
@@ -20,12 +26,12 @@ export function App() {
       <div className="dashboard">
         <Header data={data} />
         <div className="grid">
-          <TokenUsageCard usageCost={data?.usageCost} />
-          <TodayCard usageCost={data?.usageCost} hourlyActivity={activity?.hourlyActivity} />
-          <CostBreakdownCard totals={data?.usageCost?.totals} />
+          <TokenUsageCard usageCost={usageCost} />
+          <TodayCard usageCost={usageCost} hourlyActivity={hourlyActivity} />
+          <CostBreakdownCard totals={totals} />
           <SessionsCard sessions={sessions} />
-          <TaskLogCard tasks={activity?.tasks ?? []} />
-          <ActivityCard recent={activity?.recent ?? []} />
+          <TaskLogCard tasks={tasks} />
+          <ActivityCard recent={recent} />
         </div>
         <Footer timestamp={data?.timestamp} wsStatus={wsStatus} />
       </div>

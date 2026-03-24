@@ -59,6 +59,7 @@ export interface DailyUsage {
   totalTokens?: number;
   totalCost?: number;
   output?: number;
+  input?: number;
   cacheRead?: number;
 }
 

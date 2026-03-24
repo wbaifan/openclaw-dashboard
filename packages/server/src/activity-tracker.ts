@@ -74,14 +74,13 @@ interface SessionFileInfo {
   agentName: string;  // Which agent this session belongs to
 }
 
-// Cache structure for persistent scanning state
 interface ScanCache {
   version: number;
   lastScanTime: number;
   fileOffsets: Map<string, FileState>;
-  activities?: ActivityItem[];  // Cached recent activity (v2)
-  hourlyBuckets?: Map<string, number[]>; // Cached hourly activity data (v3)
-  stats?: ActivityStats | null;  // Cached stats (v3): date-based statistics
+  activities?: ActivityItem[];
+  hourlyBuckets?: Map<string, number>;
+  stats?: ActivityStats | null;
 }
 
 function getSessionDisplayId(filePath: string): string {
@@ -92,7 +91,7 @@ export class ActivityTracker {
   private _fileOffsets = new Map<string, FileState>();
   private _recentActivity: ActivityItem[] = [];
   private _stats: ActivityStats = { messages: 0, toolCalls: 0, errors: 0, lastActivityAt: null, date: null };
-  private _hourlyBuckets: Map<string, number[]> = new Map(); // hourKey -> timestamps
+  private _hourlyBuckets: Map<string, number> = new Map();
   private _lastSnapshotTime = 0;
   private _cachedHourlyActivity: number[] | null = null;
   private _agentDirs: { agentName: string; sessionsDir: string }[] = [];
@@ -107,7 +106,7 @@ export class ActivityTracker {
   }
 
   /** Start watching session log files for live activity. */
-  start(): void {
+  async start(): Promise<void> {
     // Get all agent directories
     this._agentDirs = getAgentSessionsDirs();
     
@@ -120,7 +119,7 @@ export class ActivityTracker {
     const agentNames = this._agentDirs.map(a => a.agentName).join(', ');
     console.log(`[activity] Tracking ${this._agentDirs.length} agent(s): ${agentNames}`);
 
-    this._loadHistory();
+    await this._loadHistory();
 
     // Watch each agent's sessions directory
     for (const { agentName, sessionsDir } of this._agentDirs) {
@@ -178,7 +177,7 @@ export class ActivityTracker {
     
     const hourlyActivity = new Array<number>(24).fill(0);
     
-    this._hourlyBuckets.forEach((timestamps, hourKey) => {
+    this._hourlyBuckets.forEach((count, hourKey) => {
       const [datePart, hourPart] = hourKey.split('T');
       const [year, month, day] = datePart.split('-').map(Number);
       const hour = parseInt(hourPart);
@@ -189,9 +188,7 @@ export class ActivityTracker {
       
       // Only count data from last 24 hours
       if (hoursAgo >= 0 && hoursAgo < 24) {
-        // Position is hour itself (0-23) - direct mapping for frontend
-        // Frontend expects: index 0 = 0:00, index 1 = 1:00, ..., index 23 = 23:00
-        hourlyActivity[hour] = timestamps.length;
+        hourlyActivity[hour] = count;
       }
     });
     
@@ -203,7 +200,7 @@ export class ActivityTracker {
 
   // ── History Loading ──────────────────────────────────────
 
-  private _loadHistory(): void {
+  private async _loadHistory(): Promise<void> {
     this._isLoadingHistory = true; // Prevent callbacks during history load
     try {
       // Load cached scanning state
@@ -258,7 +255,7 @@ export class ActivityTracker {
       
       // Recompute stats from complete history if not cached
       if (!hasCachedStats) {
-        this._computeStatsFromHistory();
+        await this._computeStatsFromHistory();
       }
       
       // Save updated cache
@@ -277,7 +274,7 @@ export class ActivityTracker {
    * Compute stats from complete history by reading entire files.
    * This ensures accurate statistics even for large files that exceed HISTORY_READ_BYTES.
    */
-  private _computeStatsFromHistory(): void {
+  private async _computeStatsFromHistory(): Promise<void> {
     const todayStr = getLocalDateString();
     const recentFiles = this._listSessionFiles(HISTORY_LOOKBACK_MS, { 
       includeDeletedArchives: true,
@@ -288,11 +285,12 @@ export class ActivityTracker {
     let toolCalls = 0;
     let filesProcessed = 0;
     
-    for (const { filePath } of recentFiles) {
+    const filePromises = recentFiles.map(async ({ filePath }) => {
       try {
-        // Read entire file (no size limit for stats)
-        const content = fs.readFileSync(filePath, 'utf-8');
+        const content = await fs.promises.readFile(filePath, 'utf-8');
         const lines = content.split('\n');
+        let fileMessages = 0;
+        let fileToolCalls = 0;
         
         for (const line of lines) {
           if (!line.trim()) continue;
@@ -304,25 +302,32 @@ export class ActivityTracker {
             const msgDate = new Date(ts);
             const msgDateStr = getLocalDateString(msgDate);
             
-            // Only count today's messages
             if (msgDateStr !== todayStr) continue;
             
             const msg = entry.message as { role: string; content: string | ContentPart[] };
             if (msg.role === 'user') {
-              messages++;
+              fileMessages++;
             } else if (msg.role === 'assistant') {
               const { text, toolCalls: tc } = parseMessageContent(msg as Message);
-              if (text) messages++;
-              toolCalls += tc.length;
+              if (text) fileMessages++;
+              fileToolCalls += tc.length;
             }
           } catch {
             // Skip malformed lines
           }
         }
-        filesProcessed++;
+        return { messages: fileMessages, toolCalls: fileToolCalls, processed: 1 };
       } catch {
-        // Skip unreadable files
+        return { messages: 0, toolCalls: 0, processed: 0 };
       }
+    });
+    
+    const results = await Promise.all(filePromises);
+    
+    for (const result of results) {
+      messages += result.messages;
+      toolCalls += result.toolCalls;
+      filesProcessed += result.processed;
     }
     
     this._stats = { messages, toolCalls, errors: 0, lastActivityAt: null, date: todayStr };
@@ -392,10 +397,12 @@ export class ActivityTracker {
       
       // Restore hourly buckets if available (v3 cache)
       if (parsed.hourlyBuckets && typeof parsed.hourlyBuckets === 'object') {
-        const buckets = new Map<string, number[]>();
+        const buckets = new Map<string, number>();
         for (const [key, value] of Object.entries(parsed.hourlyBuckets)) {
-          if (Array.isArray(value)) {
+          if (typeof value === 'number') {
             buckets.set(key, value);
+          } else if (Array.isArray(value)) {
+            buckets.set(key, value.length);
           }
         }
         this._hourlyBuckets = buckets;
@@ -623,40 +630,30 @@ export class ActivityTracker {
     const now = Date.now();
     const lookbackMs = 24 * 3600 * 1000;
     
-    // Only record messages within the last 24 hours
     if (now - timestamp > lookbackMs) return;
     
-    // Create hour key: "YYYY-M-DTH" (e.g., "2026-3-17T14")
     const hourKey = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}T${date.getHours()}`;
     
-    // Add timestamp to bucket
-    const bucket = this._hourlyBuckets.get(hourKey) || [];
-    bucket.push(timestamp);
-    this._hourlyBuckets.set(hourKey, bucket);
+    const currentCount = this._hourlyBuckets.get(hourKey) || 0;
+    this._hourlyBuckets.set(hourKey, currentCount + 1);
     
-    // Invalidate cache
     this._cachedHourlyActivity = null;
     
     this._stats.lastActivityAt = ts;
-    
-    // Cleanup old data periodically (every 100 calls)
-    if (bucket.length % 100 === 0) {
-      this._cleanupOldData();
-    }
   }
   
-  /** Remove timestamps older than 24 hours. */
   private _cleanupOldData(): void {
     const now = Date.now();
     const lookbackMs = 24 * 3600 * 1000;
     
-    this._hourlyBuckets.forEach((timestamps, hourKey) => {
-      // Filter out timestamps older than 24 hours
-      const valid = timestamps.filter(t => now - t < lookbackMs);
-      if (valid.length === 0) {
+    this._hourlyBuckets.forEach((_, hourKey) => {
+      const [datePart, hourPart] = hourKey.split('T');
+      const [year, month, day] = datePart.split('-').map(Number);
+      const hour = parseInt(hourPart);
+      const hourTimestamp = new Date(year, month, day, hour).getTime();
+      
+      if (now - hourTimestamp > lookbackMs) {
         this._hourlyBuckets.delete(hourKey);
-      } else if (valid.length !== timestamps.length) {
-        this._hourlyBuckets.set(hourKey, valid);
       }
     });
   }

@@ -103,7 +103,7 @@ server.listen(config.port, config.host, () => {
     pushUpdate().catch(err => console.error('[activity-push]', (err as Error).message));
   });
   
-  tracker.start();
+  tracker.start().catch(err => console.error('[activity-start]', (err as Error).message));
   
   // Initial update after startup
   setTimeout(updateLoop, STARTUP_DELAY_MS);
